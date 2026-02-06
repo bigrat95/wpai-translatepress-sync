@@ -4,7 +4,7 @@ Tags: translatepress, wp all import, translation, multilingual, woocommerce
 Requires at least: 5.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 2.3.0
+Stable tag: 2.3.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -85,6 +85,11 @@ Yes, TranslatePress SEO Pack addon is required for slug translations. Category n
 3. Translations synced in TranslatePress
 
 == Changelog ==
+
+= 2.3.1 =
+* Renamed plugin to "TranslatePress Import Sync" (WordPress.org compliance)
+* Fixed text domain to match plugin slug
+* Updated tested up to WordPress 6.9
 
 = 2.3.0 =
 * NEW: WooCommerce category name translations (`_trp_cat_[lang]`)
