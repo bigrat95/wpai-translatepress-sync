@@ -1,8 +1,8 @@
-=== WP All Import - TranslatePress Sync ===
+=== TranslatePress Import Sync ===
 Contributors: olivierbigras
 Tags: translatepress, wp all import, translation, multilingual, woocommerce
 Requires at least: 5.0
-Tested up to: 6.7
+Tested up to: 6.9
 Requires PHP: 7.4
 Stable tag: 2.3.0
 License: GPLv2 or later
@@ -12,7 +12,7 @@ Automatically sync translations from WP All Import to TranslatePress using the o
 
 == Description ==
 
-**WP All Import - TranslatePress Sync** enables you to import multilingual content directly into TranslatePress when using WP All Import. Perfect for bulk importing products, posts, or any content with translations.
+**TranslatePress Import Sync** enables you to import multilingual content directly into TranslatePress when using WP All Import. Perfect for bulk importing products, posts, or any content with translations.
 
 = Features =
 

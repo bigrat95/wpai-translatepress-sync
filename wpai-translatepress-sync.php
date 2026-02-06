@@ -1,13 +1,13 @@
 <?php
 /**
- * Plugin Name: WP All Import - TranslatePress Sync
+ * Plugin Name: TranslatePress Import Sync
  * Plugin URI: https://github.com/bigrat95/wpai-translatepress-sync
  * Description: Automatically sync translations from WP All Import to TranslatePress using the official Custom API. Map _trp_title_[lang] and _trp_content_[lang] custom fields in your import.
  * Version: 2.3.0
  * Author: Olivier Bigras
  * Author URI: https://olivierbigras.com
  * License: GPL v2 or later
- * Text Domain: wpai-trp-sync
+ * Text Domain: translatepress-import-sync
  * Requires at least: 5.0
  * Requires PHP: 7.4
  */

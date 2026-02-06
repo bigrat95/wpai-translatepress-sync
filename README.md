@@ -1,4 +1,4 @@
-# WP All Import - TranslatePress Sync
+# TranslatePress Import Sync
 
 Automatically sync translations from WP All Import to TranslatePress using the official TranslatePress Custom API.
 
