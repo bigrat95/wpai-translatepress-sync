@@ -5,7 +5,7 @@ Automatically sync translations from WP All Import to TranslatePress using the o
 **Author:** Olivier Bigras  
 **Website:** [olivierbigras.com](https://olivierbigras.com)  
 **Email:** oli@olivierbigras.com  
-**Version:** 2.3.1  
+**Version:** 2.3.2  
 **License:** GPL v2 or later
 
 ---
@@ -277,6 +277,10 @@ Check `wp-content/debug.log` for entries like:
 ---
 
 ## Changelog
+
+### 2.3.2
+- Added upgrade notice section
+- Minor readme improvements
 
 ### 2.3.1
 - Renamed plugin to "TranslatePress Import Sync" (WordPress.org compliance)
