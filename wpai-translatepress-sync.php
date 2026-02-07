@@ -3,7 +3,7 @@
  * Plugin Name: TranslatePress Import Sync
  * Plugin URI: https://github.com/bigrat95/wpai-translatepress-sync
  * Description: Automatically sync translations from WP All Import to TranslatePress using the official Custom API. Map _trp_title_[lang] and _trp_content_[lang] custom fields in your import.
- * Version: 2.3.2
+ * Version: 2.4.0
  * Author: Olivier Bigras
  * Author URI: https://olivierbigras.com
  * License: GPL v2 or later
@@ -164,6 +164,44 @@ class WPAI_TranslatePress_Sync {
     }
 
     /**
+     * Force insert/update a translation by deleting existing one first
+     * This ensures translations are ALWAYS updated, not skipped if they exist
+     * 
+     * @param string $original    Original string
+     * @param string $translated  Translated string
+     * @param string $lang_code   Target language code
+     * @return array|WP_Error
+     */
+    private function force_insert_translation( $original, $translated, $lang_code ) {
+        global $wpdb;
+        
+        // First, delete any existing translation for this original string
+        $trp = TRP_Translate_Press::get_trp_instance();
+        $trp_settings_obj = $trp->get_component( 'settings' );
+        $trp_settings = $trp_settings_obj->get_settings();
+        
+        // Get the table name for this language
+        $table_name = $wpdb->prefix . 'trp_dictionary_' . strtolower( $lang_code );
+        
+        // Delete existing translation for this original string
+        $wpdb->query(
+            $wpdb->prepare(
+                "DELETE FROM `$table_name` WHERE original = %s",
+                $original
+            )
+        );
+        
+        $this->log( sprintf( 'Deleted existing translation for: %s (lang: %s)', substr( $original, 0, 50 ), $lang_code ) );
+        
+        // Now insert the new translation using the API
+        if ( function_exists( 'trpc_insert_translation' ) ) {
+            return trpc_insert_translation( $original, $translated, $lang_code, array( 'status' => 2 ) );
+        }
+        
+        return new WP_Error( 'api_not_available', 'TranslatePress Custom API not available' );
+    }
+
+    /**
      * Convert double line breaks to <br><br> and single to <br>
      * Preserves visual paragraph spacing without creating multiple <p> tags
      * 
@@ -258,12 +296,11 @@ class WPAI_TranslatePress_Sync {
                         continue;
                     }
 
-                    // Use official TranslatePress Custom API
-                    $result = trpc_insert_translation( 
+                    // Force update translation (delete existing first)
+                    $result = $this->force_insert_translation( 
                         $original_value, 
                         $translated_value, 
-                        $lang_code,
-                        array( 'status' => 2 ) // HUMAN_REVIEWED
+                        $lang_code
                     );
 
                     if ( ! is_wp_error( $result ) && isset( $result['success'] ) && $result['success'] ) {
@@ -326,11 +363,10 @@ class WPAI_TranslatePress_Sync {
                 // Match translated categories with original categories by position
                 foreach ( $categories as $index => $category ) {
                     if ( isset( $translated_cats[ $index ] ) && ! empty( $translated_cats[ $index ] ) ) {
-                        $result = trpc_insert_translation(
+                        $result = $this->force_insert_translation(
                             $category->name,
                             $translated_cats[ $index ],
-                            $lang_code,
-                            array( 'status' => 2 )
+                            $lang_code
                         );
                         
                         if ( ! is_wp_error( $result ) && isset( $result['success'] ) && $result['success'] ) {
@@ -440,11 +476,10 @@ class WPAI_TranslatePress_Sync {
                     
                     foreach ( $terms as $index => $term ) {
                         if ( isset( $translated_values[ $index ] ) && ! empty( $translated_values[ $index ] ) ) {
-                            $result = trpc_insert_translation(
+                            $result = $this->force_insert_translation(
                                 $term->name,
                                 $translated_values[ $index ],
-                                $lang_code,
-                                array( 'status' => 2 )
+                                $lang_code
                             );
                             
                             if ( ! is_wp_error( $result ) && isset( $result['success'] ) && $result['success'] ) {
@@ -460,11 +495,10 @@ class WPAI_TranslatePress_Sync {
                 
                 foreach ( $original_values as $index => $original_value ) {
                     if ( isset( $translated_values[ $index ] ) && ! empty( $translated_values[ $index ] ) ) {
-                        $result = trpc_insert_translation(
+                        $result = $this->force_insert_translation(
                             $original_value,
                             $translated_values[ $index ],
-                            $lang_code,
-                            array( 'status' => 2 )
+                            $lang_code
                         );
                         
                         if ( ! is_wp_error( $result ) && isset( $result['success'] ) && $result['success'] ) {
@@ -509,7 +543,7 @@ class WPAI_TranslatePress_Sync {
         $first_lang = ! empty( $languages ) ? $languages[0] : 'fr_CA';
         ?>
         <div class="notice notice-info is-dismissible" id="wpai-trp-notice">
-            <p><strong>📝 TranslatePress Sync Active v2.3</strong> (using Official API)</p>
+            <p><strong>📝 TranslatePress Sync Active v2.4</strong> (Force Update Mode)</p>
             
             <p><strong>📄 Post/Product Fields:</strong></p>
             <ul style="list-style: disc; margin-left: 20px;">
