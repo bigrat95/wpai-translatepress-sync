@@ -3,7 +3,7 @@
  * Plugin Name: TranslatePress Import Sync
  * Plugin URI: https://github.com/bigrat95/wpai-translatepress-sync
  * Description: Automatically sync translations from WP All Import to TranslatePress using the official Custom API. Map _trp_title_[lang] and _trp_content_[lang] custom fields in your import.
- * Version: 3.3.0
+ * Version: 3.4.0
  * Author: Olivier Bigras
  * Author URI: https://olivierbigras.com
  * License: GPL v2 or later
@@ -656,8 +656,8 @@ class WPAI_TranslatePress_Sync {
                 $this->log( sprintf( 'API Error for variation #%d description: %s', $post_id, $result->get_error_message() ) );
             }
 
-            // Clean up temporary meta field
-            delete_post_meta( $post_id, $meta_key );
+            // Keep the meta field for direct lookup by theme (don't delete)
+            // This allows themes to read translation directly without dictionary lookup
         }
 
         if ( $translations_added > 0 ) {
