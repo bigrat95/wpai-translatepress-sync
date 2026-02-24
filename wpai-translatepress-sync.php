@@ -3,7 +3,7 @@
  * Plugin Name: TranslatePress Import Sync
  * Plugin URI: https://github.com/bigrat95/wpai-translatepress-sync
  * Description: Automatically sync translations from WP All Import to TranslatePress using the official Custom API. Map _trp_title_[lang] and _trp_content_[lang] custom fields in your import.
- * Version: 3.4.0
+ * Version: 3.5.0
  * Author: Olivier Bigras
  * Author URI: https://olivierbigras.com
  * License: GPL v2 or later
@@ -77,14 +77,25 @@ class WPAI_TranslatePress_Sync {
     private $variation_desc_prefix = '_trp_variation_desc_';
 
     /**
+     * Store original categories before import overwrites them
+     */
+    private $preserved_categories = array();
+
+    /**
      * Constructor
      */
     public function __construct() {
         // Hook into WP All Import BEFORE post is saved to convert line breaks
         add_filter( 'pmxi_article_data', array( $this, 'convert_linebreaks_before_save' ), 10, 4 );
         
+        // Preserve categories before import updates the post
+        add_action( 'pmxi_before_post_import', array( $this, 'preserve_categories_before_import' ), 10, 1 );
+        
         // Hook into WP All Import after post is saved
         add_action( 'pmxi_saved_post', array( $this, 'sync_translations' ), 10, 3 );
+        
+        // Restore categories after import (runs after sync_translations)
+        add_action( 'pmxi_saved_post', array( $this, 'restore_preserved_categories' ), 20, 3 );
         
         // Admin notice for configuration help
         add_action( 'admin_notices', array( $this, 'admin_notice' ) );
@@ -166,6 +177,48 @@ class WPAI_TranslatePress_Sync {
     private function log( $message ) {
         if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
             error_log( '[WPAI-TRP-Sync] ' . $message );
+        }
+    }
+
+    /**
+     * Preserve categories before WP All Import updates the post
+     * This runs before the post is saved, so we can capture existing categories
+     * 
+     * @param int $post_id Post ID being imported
+     */
+    public function preserve_categories_before_import( $post_id ) {
+        if ( empty( $post_id ) || get_post_type( $post_id ) !== 'product' ) {
+            return;
+        }
+        
+        $categories = wp_get_post_terms( $post_id, 'product_cat', array( 'fields' => 'ids' ) );
+        
+        if ( ! is_wp_error( $categories ) && ! empty( $categories ) ) {
+            $this->preserved_categories[ $post_id ] = $categories;
+        }
+    }
+
+    /**
+     * Restore preserved categories after WP All Import saves the post
+     * This runs after sync_translations (priority 20 vs 10)
+     * 
+     * @param int   $post_id     Post ID
+     * @param array $xml_node    XML data
+     * @param bool  $is_update   Whether this is an update
+     */
+    public function restore_preserved_categories( $post_id, $xml_node, $is_update ) {
+        // Only restore for updates, not new products
+        if ( ! $is_update ) {
+            return;
+        }
+        
+        if ( get_post_type( $post_id ) !== 'product' ) {
+            return;
+        }
+        
+        if ( isset( $this->preserved_categories[ $post_id ] ) && ! empty( $this->preserved_categories[ $post_id ] ) ) {
+            wp_set_post_terms( $post_id, $this->preserved_categories[ $post_id ], 'product_cat' );
+            unset( $this->preserved_categories[ $post_id ] );
         }
     }
 
