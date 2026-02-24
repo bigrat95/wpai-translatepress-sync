@@ -3,7 +3,7 @@
  * Plugin Name: TranslatePress Import Sync
  * Plugin URI: https://github.com/bigrat95/wpai-translatepress-sync
  * Description: Automatically sync translations from WP All Import to TranslatePress using the official Custom API. Map _trp_title_[lang] and _trp_content_[lang] custom fields in your import.
- * Version: 3.1.0
+ * Version: 3.3.0
  * Author: Olivier Bigras
  * Author URI: https://olivierbigras.com
  * License: GPL v2 or later
@@ -173,10 +173,13 @@ class WPAI_TranslatePress_Sync {
      * Force insert/update a translation by deleting existing one first
      * This ensures translations are ALWAYS updated, not skipped if they exist
      * 
+     * Also inserts HTML-encoded version if the string contains special characters,
+     * because TranslatePress may detect the string with HTML entities on the frontend.
+     * 
      * @param string $original    Original string
      * @param string $translated  Translated string
-     * @param string $lang_code   Target language code
-     * @return array|WP_Error
+     * @param string $lang_code   Language code (e.g., 'fr_CA')
+     * @return array|WP_Error Result from trpc_insert_translation
      */
     private function force_insert_translation( $original, $translated, $lang_code ) {
         global $wpdb;
@@ -186,8 +189,9 @@ class WPAI_TranslatePress_Sync {
         $trp_settings_obj = $trp->get_component( 'settings' );
         $trp_settings = $trp_settings_obj->get_settings();
         
-        // Get the table name for this language
-        $table_name = $wpdb->prefix . 'trp_dictionary_' . strtolower( $lang_code );
+        // Get the table name for this language (format: trp_dictionary_[default]_[translation])
+        $default_lang = strtolower( $trp_settings['default-language'] );
+        $table_name = $wpdb->prefix . 'trp_dictionary_' . $default_lang . '_' . strtolower( $lang_code );
         
         // Delete existing translation for this original string
         $wpdb->query(
@@ -197,11 +201,30 @@ class WPAI_TranslatePress_Sync {
             )
         );
         
-        $this->log( sprintf( 'Deleted existing translation for: %s (lang: %s)', substr( $original, 0, 50 ), $lang_code ) );
+        // Also check for HTML-encoded version and delete it too
+        $original_encoded = htmlspecialchars( $original, ENT_QUOTES, 'UTF-8' );
+        if ( $original_encoded !== $original ) {
+            $wpdb->query(
+                $wpdb->prepare(
+                    "DELETE FROM `$table_name` WHERE original = %s",
+                    $original_encoded
+                )
+            );
+        }
         
         // Now insert the new translation using the API
         if ( function_exists( 'trpc_insert_translation' ) ) {
-            return trpc_insert_translation( $original, $translated, $lang_code, array( 'status' => 2 ) );
+            // Insert the raw version
+            $result = trpc_insert_translation( $original, $translated, $lang_code, array( 'status' => 2 ) );
+            
+            // Also insert HTML-encoded version if different (for frontend matching)
+            // TranslatePress detects strings after esc_html() is applied, so quotes become &quot;
+            if ( $original_encoded !== $original ) {
+                $translated_encoded = htmlspecialchars( $translated, ENT_QUOTES, 'UTF-8' );
+                trpc_insert_translation( $original_encoded, $translated_encoded, $lang_code, array( 'status' => 2 ) );
+            }
+            
+            return $result;
         }
         
         return new WP_Error( 'api_not_available', 'TranslatePress Custom API not available' );
@@ -250,27 +273,41 @@ class WPAI_TranslatePress_Sync {
      * Sync translations after WP All Import saves a post
      */
     public function sync_translations( $post_id, $xml_node, $is_update ) {
+        $this->log( '=== SYNC START for post #' . $post_id . ' ===' );
+        
         try {
             // Check if TranslatePress Custom API is available
             if ( ! function_exists( 'trpc_insert_translation' ) ) {
+                $this->log( 'ERROR: trpc_insert_translation function not available!' );
                 return;
             }
+            $this->log( 'trpc_insert_translation function is available' );
 
             $post = get_post( $post_id );
             if ( ! $post ) {
+                $this->log( 'ERROR: Could not get post #' . $post_id );
                 return;
             }
+            $this->log( 'Post type: ' . $post->post_type );
 
             $translation_languages = $this->get_translation_languages();
             if ( empty( $translation_languages ) ) {
                 $this->log( 'No translation languages configured' );
                 return;
             }
+            $this->log( 'Translation languages: ' . implode( ', ', $translation_languages ) );
 
             $translations_added = 0;
 
             // Get all post meta to find our translation fields
             $all_meta = get_post_meta( $post_id );
+            $this->log( 'Found ' . count( $all_meta ) . ' meta fields' );
+            
+            // Log which _trp_ fields exist
+            $trp_fields = array_filter( array_keys( $all_meta ), function( $key ) {
+                return strpos( $key, '_trp_' ) === 0;
+            });
+            $this->log( 'TRP fields found: ' . ( empty( $trp_fields ) ? 'NONE' : implode( ', ', $trp_fields ) ) );
 
             foreach ( $this->field_prefixes as $prefix => $post_field ) {
                 foreach ( $translation_languages as $lang_code ) {
@@ -496,22 +533,40 @@ class WPAI_TranslatePress_Sync {
             $taxonomy = 'pa_' . $attr_slug;
             
             if ( isset( $attributes[ $taxonomy ] ) && $attributes[ $taxonomy ]->is_taxonomy() ) {
-                // Global attribute (taxonomy-based) - use parent ID for variations
-                $terms = wp_get_post_terms( $terms_post_id, $taxonomy, array( 'fields' => 'all' ) );
+                // Global attribute (taxonomy-based)
+                $translated_values = array_map( 'trim', explode( '|', $meta_values[0] ) );
                 
-                if ( ! is_wp_error( $terms ) && ! empty( $terms ) ) {
-                    $translated_values = array_map( 'trim', explode( '|', $meta_values[0] ) );
+                // For variations, get the specific attribute value this variation uses
+                if ( $product->is_type( 'variation' ) ) {
+                    $variation_attr_value = $product->get_attribute( $taxonomy );
                     
-                    foreach ( $terms as $index => $term ) {
-                        if ( isset( $translated_values[ $index ] ) && ! empty( $translated_values[ $index ] ) ) {
-                            $result = $this->force_insert_translation(
-                                $term->name,
-                                $translated_values[ $index ],
-                                $lang_code
-                            );
-                            
-                            if ( ! is_wp_error( $result ) && isset( $result['success'] ) && $result['success'] ) {
-                                $translations_added++;
+                    if ( ! empty( $variation_attr_value ) && ! empty( $translated_values[0] ) ) {
+                        $result = $this->force_insert_translation(
+                            $variation_attr_value,
+                            $translated_values[0],
+                            $lang_code
+                        );
+                        
+                        if ( ! is_wp_error( $result ) && isset( $result['success'] ) && $result['success'] ) {
+                            $translations_added++;
+                        }
+                    }
+                } else {
+                    // For parent products, match all terms by index (pipe-separated values)
+                    $terms = wp_get_post_terms( $terms_post_id, $taxonomy, array( 'fields' => 'all' ) );
+                    
+                    if ( ! is_wp_error( $terms ) && ! empty( $terms ) ) {
+                        foreach ( $terms as $index => $term ) {
+                            if ( isset( $translated_values[ $index ] ) && ! empty( $translated_values[ $index ] ) ) {
+                                $result = $this->force_insert_translation(
+                                    $term->name,
+                                    $translated_values[ $index ],
+                                    $lang_code
+                                );
+                                
+                                if ( ! is_wp_error( $result ) && isset( $result['success'] ) && $result['success'] ) {
+                                    $translations_added++;
+                                }
                             }
                         }
                     }
@@ -637,7 +692,7 @@ class WPAI_TranslatePress_Sync {
         $first_lang = ! empty( $languages ) ? $languages[0] : 'fr_CA';
         ?>
         <div class="notice notice-info is-dismissible" id="wpai-trp-notice">
-            <p><strong>📝 TranslatePress Sync Active v3.1.0</strong> (Force Update Mode)</p>
+            <p><strong>📝 TranslatePress Sync Active v3.2.0</strong> (Force Update Mode)</p>
             
             <p><strong>📄 Post/Product Fields:</strong></p>
             <ul style="list-style: disc; margin-left: 20px;">
