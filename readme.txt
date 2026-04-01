@@ -4,7 +4,7 @@ Tags: translatepress, wp all import, translation, multilingual, woocommerce
 Requires at least: 5.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 3.12.0
+Stable tag: 3.13.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -92,8 +92,14 @@ Yes, TranslatePress SEO Pack addon is required for slug translations. Category n
 
 == Changelog ==
 
+= 3.13.0 =
+* FIX: Strip ALL paragraph separators into a single text block (spaces only, no <br>)
+* wpautop() wraps in ONE <p> = TranslatePress detects ONE string = dictionary always matches
+* Works regardless of paragraph count differences between languages
+* Re-enabled content flattening hook and safety-net DB update
+
 = 3.12.0 =
-* FIX: Per-paragraph translation matching — inserts one TranslatePress dictionary entry per paragraph
+* Per-paragraph translation matching (superseded by 3.13.0) — inserts one TranslatePress dictionary entry per paragraph
 * Removed content flattening (was causing mismatch between DB content and what TranslatePress detects)
 * Added split_into_paragraphs helper that handles <p> tags, <br><br>, and double newlines
 * Variation descriptions also use per-paragraph matching
@@ -210,8 +216,11 @@ Yes, TranslatePress SEO Pack addon is required for slug translations. Category n
 
 == Upgrade Notice ==
 
+= 3.13.0 =
+Strip all paragraph breaks into one text block. Translation always matches regardless of paragraph count.
+
 = 3.12.0 =
-Critical fix: per-paragraph translation matching. Fixes French translations not appearing for multi-paragraph descriptions.
+Per-paragraph matching (superseded by 3.13.0). Fixes French translations not appearing for multi-paragraph descriptions.
 
 = 3.11.0 =
 Full plugin dashboard with tabbed UI.

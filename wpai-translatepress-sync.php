@@ -3,7 +3,7 @@
  * Plugin Name: TranslatePress Import Sync
  * Plugin URI: https://github.com/bigrat95/wpai-translatepress-sync
  * Description: Automatically sync translations from WP All Import to TranslatePress using the official Custom API. Map _trp_title_[lang] and _trp_content_[lang] custom fields in your import.
- * Version: 3.12.0
+ * Version: 3.13.0
  * Author: Olivier Bigras
  * Author URI: https://olivierbigras.com
  * License: GPL v2 or later
@@ -87,8 +87,14 @@ class WPAI_TranslatePress_Sync {
     public function __construct() {
         $this->log_file = plugin_dir_path( __FILE__ ) . 'sync-log.txt';
 
+        // Flatten content to single block before WP All Import saves
+        add_filter( 'pmxi_article_data', array( $this, 'convert_linebreaks_before_save' ), 10, 4 );
+
         // Hook into WP All Import after post is saved
         add_action( 'pmxi_saved_post', array( $this, 'sync_translations' ), 10, 3 );
+
+        // Safety net: re-flatten after entire import record (catches WooCommerce reverts)
+        add_action( 'pmxi_after_post_import', array( $this, 'normalize_content_after_import' ), 10, 1 );
         
         // Admin notice for configuration help
         add_action( 'admin_notices', array( $this, 'admin_notice' ) );
@@ -285,46 +291,28 @@ class WPAI_TranslatePress_Sync {
             return $content;
         }
 
-        // 1. Strip Gutenberg block comments: <!-- wp:paragraph --> etc.
+        // Strip Gutenberg block comments
         $content = preg_replace( '/<!--\s*\/?\s*wp:\w+[^>]*?-->/s', '', $content );
 
-        // 2. Normalize all <br> variants (<br>, <br/>, <br />) to standard <br>
-        $content = preg_replace( '/<br\s*\/?>/i', '<br>', $content );
+        // Replace block-level closing/opening pairs with a space
+        $content = preg_replace( '/<\/(p|div)>\s*<(p|div)[^>]*>/i', ' ', $content );
 
-        // 3. Replace closing+opening block tag pairs with <br><br>
-        //    Handles: </p><p>, </p>\n\n<p>, </div><div class="x">, etc.
-        $content = preg_replace(
-            '/<\/(p|div)>\s*<(p|div)[^>]*>/i',
-            '<br><br>',
-            $content
-        );
+        // Strip remaining <p>, </p>, <div>, </div> tags
+        $content = preg_replace( '/<\/?(p|div)[^>]*>/i', ' ', $content );
 
-        // 4. Strip any remaining <p>, </p>, <div>, </div> tags
-        $content = preg_replace( '/<\/?(p|div)[^>]*>/i', '', $content );
+        // Replace all <br> variants with a space
+        $content = preg_replace( '/<br\s*\/?>/i', ' ', $content );
 
-        // 5. Convert double line breaks to <br><br> (paragraph breaks)
-        //    Handles \r\n\r\n, \n\n, \r\r, and variants with whitespace between
-        $content = preg_replace( '/(\r\n\s*){2,}/', '<br><br>', $content );
-        $content = preg_replace( '/(\n\s*){2,}/', '<br><br>', $content );
-        $content = preg_replace( '/(\r\s*){2,}/', '<br><br>', $content );
+        // Replace all newlines with a space
+        $content = preg_replace( '/[\r\n]+/', ' ', $content );
 
-        // 6. Convert remaining single line breaks to <br>
-        $content = preg_replace( '/\r\n|\n|\r/', '<br>', $content );
+        // Replace &nbsp; with a space
+        $content = str_replace( '&nbsp;', ' ', $content );
 
-        // 7. Collapse 3+ consecutive <br> (with optional whitespace) to <br><br>
-        $content = preg_replace( '/(<br>\s*){3,}/', '<br><br>', $content );
+        // Collapse multiple spaces into one
+        $content = preg_replace( '/\s{2,}/', ' ', $content );
 
-        // 8. Collapse multiple &nbsp; used as paragraph spacers into <br><br>
-        $content = preg_replace( '/(&nbsp;\s*){3,}/', '<br><br>', $content );
-
-        // 9. Remove leading/trailing <br> tags and whitespace
-        $content = preg_replace( '/^(\s*<br>\s*)+/', '', $content );
-        $content = preg_replace( '/(\s*<br>\s*)+$/', '', $content );
-
-        // 10. Final trim
-        $content = trim( $content );
-
-        return $content;
+        return trim( $content );
     }
 
     /**
@@ -459,46 +447,33 @@ class WPAI_TranslatePress_Sync {
                         continue;
                     }
 
-                    // Per-paragraph translation matching (v3.12.0)
-                    // TranslatePress detects each <p> block rendered by wpautop() as a
-                    // separate translatable string. We split both original and translation
-                    // into paragraphs and insert one dictionary entry per paragraph pair.
-                    if ( $post_field === 'post_content' ) {
-                        $original_paragraphs   = $this->split_into_paragraphs( $original_value );
-                        $translated_paragraphs = $this->split_into_paragraphs( $translated_value );
+                    // Flatten both original and translation to a single text block
+                    // so TranslatePress always sees ONE string = ONE dictionary entry
+                    $original_flat  = $this->convert_linebreaks( $original_value );
+                    $translated_flat = $this->convert_linebreaks( $translated_value );
 
-                        $pair_count = min( count( $original_paragraphs ), count( $translated_paragraphs ) );
-
-                        if ( count( $original_paragraphs ) !== count( $translated_paragraphs ) ) {
-                            $this->log( sprintf(
-                                'WARNING: Paragraph count mismatch for post #%d %s: original=%d, translation=%d',
-                                $post_id, $meta_key, count( $original_paragraphs ), count( $translated_paragraphs )
-                            ) );
+                    // Persist flattened original to DB (bypass WooCommerce hooks)
+                    if ( $original_flat !== $original_value && in_array( $post_field, array( 'post_content', 'post_excerpt' ), true ) ) {
+                        global $wpdb;
+                        $updated = $wpdb->update(
+                            $wpdb->posts,
+                            array( $post_field => $original_flat ),
+                            array( 'ID' => $post_id ),
+                            array( '%s' ),
+                            array( '%d' )
+                        );
+                        if ( $updated !== false ) {
+                            clean_post_cache( $post_id );
+                            $this->log( sprintf( 'Flattened %s for post #%d (%d chars)', $post_field, $post_id, strlen( $original_flat ) ) );
                         }
+                    }
 
-                        for ( $i = 0; $i < $pair_count; $i++ ) {
-                            $result = $this->force_insert_translation(
-                                $original_paragraphs[ $i ],
-                                $translated_paragraphs[ $i ],
-                                $lang_code
-                            );
-                            if ( ! is_wp_error( $result ) && isset( $result['success'] ) && $result['success'] ) {
-                                $translations_added++;
-                            } elseif ( is_wp_error( $result ) ) {
-                                $this->log( sprintf( 'API Error for post #%d, %s para %d: %s', $post_id, $meta_key, $i + 1, $result->get_error_message() ) );
-                            }
-                        }
+                    $result = $this->force_insert_translation( $original_flat, $translated_flat, $lang_code );
 
-                        $this->log( sprintf( 'Inserted %d paragraph translations for post #%d (%s)', $pair_count, $post_id, $meta_key ) );
-                    } else {
-                        // For title and excerpt: single-string translation
-                        $result = $this->force_insert_translation( trim( $original_value ), trim( $translated_value ), $lang_code );
-
-                        if ( ! is_wp_error( $result ) && isset( $result['success'] ) && $result['success'] ) {
-                            $translations_added++;
-                        } elseif ( is_wp_error( $result ) ) {
-                            $this->log( sprintf( 'API Error for post #%d, field %s: %s', $post_id, $meta_key, $result->get_error_message() ) );
-                        }
+                    if ( ! is_wp_error( $result ) && isset( $result['success'] ) && $result['success'] ) {
+                        $translations_added++;
+                    } elseif ( is_wp_error( $result ) ) {
+                        $this->log( sprintf( 'API Error for post #%d, field %s: %s', $post_id, $meta_key, $result->get_error_message() ) );
                     }
 
                     // Clean up temporary meta field
@@ -829,22 +804,16 @@ class WPAI_TranslatePress_Sync {
 
             $translated_desc = $all_meta[ $meta_key ][0];
 
-            // Per-paragraph translation matching (v3.12.0)
-            $orig_paras = $this->split_into_paragraphs( $original_desc );
-            $trans_paras = $this->split_into_paragraphs( $translated_desc );
-            $pair_count = min( count( $orig_paras ), count( $trans_paras ) );
+            // Flatten both to single block
+            $original_flat  = $this->convert_linebreaks( $original_desc );
+            $translated_flat = $this->convert_linebreaks( $translated_desc );
 
-            for ( $i = 0; $i < $pair_count; $i++ ) {
-                $result = $this->force_insert_translation(
-                    $orig_paras[ $i ],
-                    $trans_paras[ $i ],
-                    $lang_code
-                );
-                if ( ! is_wp_error( $result ) && isset( $result['success'] ) && $result['success'] ) {
-                    $translations_added++;
-                } elseif ( is_wp_error( $result ) ) {
-                    $this->log( sprintf( 'API Error for variation #%d description para %d: %s', $post_id, $i + 1, $result->get_error_message() ) );
-                }
+            $result = $this->force_insert_translation( $original_flat, $translated_flat, $lang_code );
+
+            if ( ! is_wp_error( $result ) && isset( $result['success'] ) && $result['success'] ) {
+                $translations_added++;
+            } elseif ( is_wp_error( $result ) ) {
+                $this->log( sprintf( 'API Error for variation #%d description: %s', $post_id, $result->get_error_message() ) );
             }
 
             // Keep the meta field for direct lookup by theme (don't delete)
@@ -1006,7 +975,7 @@ class WPAI_TranslatePress_Sync {
         $first_lang = ! empty( $languages ) ? $languages[0] : 'fr_CA';
         ?>
         <div class="wrap">
-            <h1>TP Import Sync <small style="font-weight:normal;color:#999;">v3.12.0</small></h1>
+            <h1>TP Import Sync <small style="font-weight:normal;color:#999;">v3.13.0</small></h1>
             <nav class="nav-tab-wrapper">
                 <a href="?page=wpai-trp-sync&tab=dashboard" class="nav-tab <?php echo $active_tab === 'dashboard' ? 'nav-tab-active' : ''; ?>">Dashboard</a>
                 <a href="?page=wpai-trp-sync&tab=fields" class="nav-tab <?php echo $active_tab === 'fields' ? 'nav-tab-active' : ''; ?>">Field Reference</a>
