@@ -5,7 +5,7 @@ Automatically sync translations from WP All Import to TranslatePress using the o
 **Author:** Olivier Bigras  
 **Website:** [olivierbigras.com](https://olivierbigras.com)  
 **Email:** oli@olivierbigras.com  
-**Version:** 3.1.0  
+**Version:** 3.8.1  
 **License:** GPL v2 or later
 
 ---
@@ -32,11 +32,13 @@ Automatically sync translations from WP All Import to TranslatePress using the o
 
 When you run a WP All Import, the plugin:
 
-1. **Converts line breaks** to `<br>` tags (prevents multiple `<p>` segmentation)
+1. **Flattens content** into a single block (strips `<p>`, `<div>` tags, converts newlines to `<br>` tags)
 2. Captures translated content from special custom fields you map
-3. Uses the official TranslatePress Custom API to insert translations
-4. Marks translations as "Human Reviewed" (status 2)
-5. Cleans up the temporary custom fields after import
+3. Handles smart quote mismatches (WordPress `wptexturize()` conversions)
+4. Uses the official TranslatePress Custom API to insert translations
+5. Marks translations as "Human Reviewed" (status 2)
+6. Updates the post content in the database to ensure TranslatePress detects one string per description
+7. Cleans up the temporary custom fields after import
 
 ---
 
@@ -186,35 +188,44 @@ The plugin automatically detects all configured languages from TranslatePress.
 
 ---
 
-## Line Break Conversion (Optional)
+## Automatic Content Normalization
 
-TranslatePress segments content by HTML blocks (`<p>` tags). When importing long descriptions with multiple paragraphs, this would create multiple separate strings that are harder to match.
+TranslatePress detects each `<p>` block as a separate translatable string. Without normalization, a 3-paragraph description would require 3 separate dictionary entries — making translation matching unreliable.
 
-### How to Enable
+The plugin **automatically flattens all content** into a single block. No extra configuration needed.
 
-**Step 1:** In WP All Import, check **"Keep line breaks from file"** in the import settings.
+### What It Handles
 
-**Step 2:** Add this custom field to your import:
+| Content Format | Action |
+|---|---|
+| `\n\n` (double newlines from CSV) | Converted to `<br><br>` |
+| `\n` (single newlines) | Converted to `<br>` |
+| `<p>...</p>` tags (from editors) | Stripped, replaced with `<br><br>` |
+| `<div>...</div>` wrappers | Stripped, replaced with `<br><br>` |
+| `<!-- wp:paragraph -->` (Gutenberg) | Stripped |
+| `<br/>`, `<br />` variants | Normalized to `<br>` |
+| Multiple `&nbsp;` spacers | Collapsed to `<br><br>` |
+| Mixed combinations | All handled |
 
-| Custom Field Name | Value |
-|-------------------|-------|
-| `_trp_convert_linebreaks` | `1` |
+### What It Preserves
 
-### What It Does
-
-When enabled, the plugin converts:
-- Double line breaks (`\n\n`) → `<br><br>`
-- Single line breaks (`\n`) → `<br>`
+- `<strong>`, `<b>` — bold text
+- `<em>`, `<i>` — italic text
+- `<a href="...">` — links
+- `<span>` — inline styling
+- `<ul>`, `<ol>`, `<li>` — lists
+- All other inline HTML tags
 
 ### Result
 
-- Your entire description stays as ONE string in TranslatePress
+- Your entire description is always ONE string in TranslatePress
 - Visual paragraph spacing is preserved with `<br>` tags
 - English and French translations match 1:1
+- Works with content, excerpts, and variation descriptions
 
 ### Example
 
-CSV input:
+CSV input (or content with `<p>` tags, `<div>` wrappers, etc.):
 ```
 Paragraph 1...
 
@@ -228,7 +239,7 @@ Saved in WordPress as:
 Paragraph 1...<br><br>Paragraph 2...<br><br>Paragraph 3...
 ```
 
-**Note:** If your content already contains `<p>` tags, the conversion is skipped.
+> **Note:** The `_trp_convert_linebreaks` custom field from v2.x is no longer needed. Normalization always happens automatically.
 
 ---
 
@@ -333,55 +344,53 @@ Check `wp-content/debug.log` for entries like:
 
 ## Changelog
 
+### 3.8.1
+- **FIX:** Variation description translations now always normalized
+- **FIX:** Original variation description also normalized before dictionary insertion
+- **FIX:** post_excerpt normalization now also updates the DB
+- Removed last remaining `_trp_convert_linebreaks` reference
+
+### 3.8.0
+- Bulletproof content flattening: handles ALL content formats, never skips
+- Strips `<p>`, `</p>`, `<div>`, `</div>` tags and replaces with `<br><br>`
+- Strips Gutenberg block comments (`<!-- wp:paragraph -->`)
+- Normalizes all `<br>` variants (`<br>`, `<br/>`, `<br />`)
+- Collapses excessive `<br>` tags and `&nbsp;` spacers
+- Handles mixed content: `<p>` tags + newlines + `<br>` + `<div>` in any combination
+- Cleans up leading/trailing `<br>` tags
+
+### 3.7.0
+- Auto-normalize paragraph breaks in both original and translated content
+- Updates post_content in DB automatically when paragraph breaks are found
+- `_trp_convert_linebreaks` custom field is no longer required
+
+### 3.5.0
+- **FIX:** Handle WordPress `wptexturize()` smart quotes in translation matching
+- Inserts translations for raw, HTML-encoded, and smart-quoted string variants
+- Updates existing auto-detected dictionary entries
+
+### 3.4.0
+- Keep variation description translation meta for direct theme lookup
+
+### 3.3.0
+- **FIX:** Attribute translation for variations now correctly matches HTML entities
+
 ### 3.1.0
 - **NEW:** Variation description translation support (`_trp_variation_desc_[lang]`)
-- **NEW:** Documentation for configuring variation descriptions in WP All Import
-- Updated admin notice with variation description fields
 
 ### 3.0.0
 - **NEW:** Full support for WooCommerce variable products and variations
 - **NEW:** Automatic parent product detection for variations
-- **NEW:** Collapsible attribute field list in admin notice
-- **NEW:** Support for `pa_` prefix in attribute meta keys
-- **FIX:** Attribute translations now work correctly with variable products
-- **FIX:** Terms are now retrieved from parent product for variations
 - Force update mode: existing translations are always overwritten
-- Removed debug logging for production use
-
-### 2.3.2
-- Added upgrade notice section
-- Minor readme improvements
-
-### 2.3.1
-- Renamed plugin to "TranslatePress Import Sync" (WordPress.org compliance)
-- Fixed text domain to match plugin slug
-- Updated tested up to WordPress 6.9
 
 ### 2.3.0
-- **NEW:** WooCommerce category name translations (`_trp_cat_[lang]`)
-- **NEW:** WooCommerce category slug translations (`_trp_cat_slug_[lang]`) - requires SEO Pack
-- **NEW:** WooCommerce attribute translations (`_trp_attr_[slug]_[lang]`)
-- Improved admin notice with all available fields
-- Support for both global (taxonomy) and local (custom) product attributes
-
-### 2.2.0
-- Line break conversion is now **optional** (disabled by default)
-- Enable with custom field `_trp_convert_linebreaks` = `1`
-- Added instructions for "Keep line breaks from file" WP All Import setting
-
-### 2.1.0
-- Added automatic line break conversion (`\n\n` → `<br><br>`)
-- Prevents TranslatePress from segmenting long descriptions into multiple strings
-- Both English (default) and French translations are converted consistently
+- **NEW:** WooCommerce category and attribute translation support
 
 ### 2.0.0
 - Rewrote to use official TranslatePress Custom API
-- Added support for multiple languages simultaneously
-- Dynamic language detection from TranslatePress settings
-- Improved admin notices with language-specific examples
 
 ### 1.0.0
-- Initial release with direct database insertion
+- Initial release
 
 ---
 
