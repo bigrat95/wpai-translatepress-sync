@@ -4,7 +4,7 @@ Tags: translatepress, wp all import, translation, multilingual, woocommerce
 Requires at least: 5.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 3.4.0
+Stable tag: 3.5.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -91,6 +91,12 @@ Yes, TranslatePress SEO Pack addon is required for slug translations. Category n
 3. Translations synced in TranslatePress
 
 == Changelog ==
+
+= 3.5.0 =
+* FIX: Handle WordPress wptexturize() smart quotes in translation matching
+* TranslatePress detects rendered text with smart quotes (&#8221;) but translations were stored with straight quotes (")
+* Now updates existing auto-detected dictionary entries and inserts texturized variants
+* Also handles HTML-encoded texturized versions for full coverage
 
 = 3.4.0 =
 * Keep variation description translation meta for direct theme lookup

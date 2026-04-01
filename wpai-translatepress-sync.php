@@ -3,7 +3,7 @@
  * Plugin Name: TranslatePress Import Sync
  * Plugin URI: https://github.com/bigrat95/wpai-translatepress-sync
  * Description: Automatically sync translations from WP All Import to TranslatePress using the official Custom API. Map _trp_title_[lang] and _trp_content_[lang] custom fields in your import.
- * Version: 3.4.0
+ * Version: 3.5.0
  * Author: Olivier Bigras
  * Author URI: https://olivierbigras.com
  * License: GPL v2 or later
@@ -222,6 +222,51 @@ class WPAI_TranslatePress_Sync {
             if ( $original_encoded !== $original ) {
                 $translated_encoded = htmlspecialchars( $translated, ENT_QUOTES, 'UTF-8' );
                 trpc_insert_translation( $original_encoded, $translated_encoded, $lang_code, array( 'status' => 2 ) );
+            }
+            
+            // Handle wptexturize'd version (WordPress converts straight quotes to smart quotes on render)
+            // TranslatePress detects the rendered page where " becomes &#8221; / &#8220; etc.
+            $original_texturized = wptexturize( $original );
+            if ( $original_texturized !== $original ) {
+                $translated_texturized = wptexturize( $translated );
+                
+                // Update any existing auto-detected entries that match the texturized version
+                $wpdb->update(
+                    $table_name,
+                    array(
+                        'translated' => $translated_texturized,
+                        'status'     => 2,
+                    ),
+                    array( 'original' => $original_texturized ),
+                    array( '%s', '%d' ),
+                    array( '%s' )
+                );
+                
+                // If no rows were updated, insert a new entry
+                if ( $wpdb->rows_affected === 0 ) {
+                    trpc_insert_translation( $original_texturized, $translated_texturized, $lang_code, array( 'status' => 2 ) );
+                }
+                
+                // Also handle the HTML-encoded texturized version
+                $original_tex_encoded = htmlspecialchars( $original_texturized, ENT_QUOTES, 'UTF-8' );
+                if ( $original_tex_encoded !== $original_texturized ) {
+                    $translated_tex_encoded = htmlspecialchars( $translated_texturized, ENT_QUOTES, 'UTF-8' );
+                    
+                    $wpdb->update(
+                        $table_name,
+                        array(
+                            'translated' => $translated_tex_encoded,
+                            'status'     => 2,
+                        ),
+                        array( 'original' => $original_tex_encoded ),
+                        array( '%s', '%d' ),
+                        array( '%s' )
+                    );
+                    
+                    if ( $wpdb->rows_affected === 0 ) {
+                        trpc_insert_translation( $original_tex_encoded, $translated_tex_encoded, $lang_code, array( 'status' => 2 ) );
+                    }
+                }
             }
             
             return $result;
