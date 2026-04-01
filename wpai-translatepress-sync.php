@@ -3,7 +3,7 @@
  * Plugin Name: TranslatePress Import Sync
  * Plugin URI: https://github.com/bigrat95/wpai-translatepress-sync
  * Description: Automatically sync translations from WP All Import to TranslatePress using the official Custom API. Map _trp_title_[lang] and _trp_content_[lang] custom fields in your import.
- * Version: 3.7.0
+ * Version: 3.8.0
  * Author: Olivier Bigras
  * Author URI: https://olivierbigras.com
  * License: GPL v2 or later
@@ -237,24 +237,69 @@ class WPAI_TranslatePress_Sync {
     }
 
     /**
-     * Convert double line breaks to <br><br> and single to <br>
-     * Preserves visual paragraph spacing without creating multiple <p> tags
+     * Flatten content into a single block for TranslatePress compatibility
      * 
-     * @param string $content Content with line breaks
-     * @return string Content with <br> tags
+     * TranslatePress detects each block-level HTML element (<p>, <div>) as a
+     * separate translatable string. This function removes all block-level
+     * structure and replaces it with <br> tags, so the entire description is
+     * always detected as ONE string = ONE dictionary entry.
+     * 
+     * Handles all known content formats:
+     * - Raw newlines from CSV/spreadsheet (\n, \r\n, \r)
+     * - <p> tags from WordPress editor or wpautop()
+     * - <div> wrappers from page builders or rich editors
+     * - Gutenberg block comments (<!-- wp:paragraph -->)
+     * - <br>, <br/>, <br /> variants
+     * - &nbsp; used as paragraph spacers
+     * - Mixed combinations of all the above
+     * 
+     * @param string $content Content in any format
+     * @return string Flattened content with <br> as line separators
      */
     private function convert_linebreaks( $content ) {
-        // Skip if already contains <p> tags (already formatted HTML)
-        if ( preg_match( '/<p[^>]*>/i', $content ) ) {
+        if ( empty( $content ) || ! is_string( $content ) ) {
             return $content;
         }
-        
-        // Convert double line breaks to <br><br> (paragraph breaks)
-        $content = preg_replace( '/\r\n\r\n|\n\n|\r\r/', '<br><br>', $content );
-        
-        // Convert remaining single line breaks to <br>
+
+        // 1. Strip Gutenberg block comments: <!-- wp:paragraph --> etc.
+        $content = preg_replace( '/<!--\s*\/?\s*wp:\w+[^>]*?-->/s', '', $content );
+
+        // 2. Normalize all <br> variants (<br>, <br/>, <br />) to standard <br>
+        $content = preg_replace( '/<br\s*\/?>/i', '<br>', $content );
+
+        // 3. Replace closing+opening block tag pairs with <br><br>
+        //    Handles: </p><p>, </p>\n\n<p>, </div><div class="x">, etc.
+        $content = preg_replace(
+            '/<\/(p|div)>\s*<(p|div)[^>]*>/i',
+            '<br><br>',
+            $content
+        );
+
+        // 4. Strip any remaining <p>, </p>, <div>, </div> tags
+        $content = preg_replace( '/<\/?(p|div)[^>]*>/i', '', $content );
+
+        // 5. Convert double line breaks to <br><br> (paragraph breaks)
+        //    Handles \r\n\r\n, \n\n, \r\r, and variants with whitespace between
+        $content = preg_replace( '/(\r\n\s*){2,}/', '<br><br>', $content );
+        $content = preg_replace( '/(\n\s*){2,}/', '<br><br>', $content );
+        $content = preg_replace( '/(\r\s*){2,}/', '<br><br>', $content );
+
+        // 6. Convert remaining single line breaks to <br>
         $content = preg_replace( '/\r\n|\n|\r/', '<br>', $content );
-        
+
+        // 7. Collapse 3+ consecutive <br> (with optional whitespace) to <br><br>
+        $content = preg_replace( '/(<br>\s*){3,}/', '<br><br>', $content );
+
+        // 8. Collapse multiple &nbsp; used as paragraph spacers into <br><br>
+        $content = preg_replace( '/(&nbsp;\s*){3,}/', '<br><br>', $content );
+
+        // 9. Remove leading/trailing <br> tags and whitespace
+        $content = preg_replace( '/^(\s*<br>\s*)+/', '', $content );
+        $content = preg_replace( '/(\s*<br>\s*)+$/', '', $content );
+
+        // 10. Final trim
+        $content = trim( $content );
+
         return $content;
     }
 
@@ -702,7 +747,7 @@ class WPAI_TranslatePress_Sync {
         $first_lang = ! empty( $languages ) ? $languages[0] : 'fr_CA';
         ?>
         <div class="notice notice-info is-dismissible" id="wpai-trp-notice">
-            <p><strong>📝 TranslatePress Sync Active v3.7.0</strong> (Force Update Mode)</p>
+            <p><strong>📝 TranslatePress Sync Active v3.8.0</strong> (Force Update Mode)</p>
             
             <p><strong>📄 Post/Product Fields:</strong></p>
             <ul style="list-style: disc; margin-left: 20px;">
