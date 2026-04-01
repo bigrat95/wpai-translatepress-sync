@@ -23,7 +23,7 @@ Automatically sync translations from WP All Import to TranslatePress using the o
 * **Variable Products** - Full support for WooCommerce variable products and variations
 * **Multiple Languages** - Import all your languages simultaneously
 * **Human Reviewed Status** - Translations are marked as "Human Reviewed" (status 2) so auto-translation won't overwrite them
-* **Line Break Conversion** - Optional conversion of line breaks to `<br>` tags
+* **Automatic Paragraph Normalization** - Line breaks are automatically converted to `<br>` tags so TranslatePress always matches one string per description
 
 = Requirements =
 
@@ -152,7 +152,7 @@ Yes, TranslatePress SEO Pack addon is required for slug translations. Category n
 
 = 2.2.0 =
 * Line break conversion is now optional (disabled by default)
-* Enable with custom field `_trp_convert_linebreaks` = `1`
+* Enable with custom field `_trp_convert_linebreaks` = `1` (deprecated in 3.7.0 - now automatic)
 * Added instructions for "Keep line breaks from file" WP All Import setting
 
 = 2.1.0 =
@@ -169,6 +169,12 @@ Yes, TranslatePress SEO Pack addon is required for slug translations. Category n
 * Initial release
 
 == Upgrade Notice ==
+
+= 3.7.0 =
+Automatic paragraph normalization. `_trp_convert_linebreaks` field is no longer needed - remove it from your import.
+
+= 3.5.0 =
+Fixes smart quote mismatch between imported translations and TranslatePress frontend detection.
 
 = 3.4.0 =
 Keeps variation description translation meta for direct theme lookup.

@@ -702,7 +702,7 @@ class WPAI_TranslatePress_Sync {
         $first_lang = ! empty( $languages ) ? $languages[0] : 'fr_CA';
         ?>
         <div class="notice notice-info is-dismissible" id="wpai-trp-notice">
-            <p><strong>📝 TranslatePress Sync Active v3.2.0</strong> (Force Update Mode)</p>
+            <p><strong>📝 TranslatePress Sync Active v3.7.0</strong> (Force Update Mode)</p>
             
             <p><strong>📄 Post/Product Fields:</strong></p>
             <ul style="list-style: disc; margin-left: 20px;">
@@ -775,10 +775,7 @@ class WPAI_TranslatePress_Sync {
             }
             ?>
             
-            <p style="margin-top: 10px;"><strong>⚡ Line Break Conversion (optional):</strong></p>
-            <ul style="list-style: disc; margin-left: 20px;">
-                <li><code>_trp_convert_linebreaks</code> → Set to <code>1</code> to convert \n to &lt;br&gt;</li>
-            </ul>
+            <p style="margin-top: 10px;"><strong>⚡ Paragraph Normalization:</strong> Line breaks are automatically converted to <code>&lt;br&gt;</code> tags so TranslatePress always detects one string per description. No extra fields needed.</p>
             
             <p style="margin-top: 10px;"><strong>🔒 Auto-Translation Protection:</strong> All imported translations are saved with <strong>status 2 (Human Reviewed)</strong>.</p>
             <p><small>Configured languages: <?php echo esc_html( implode( ', ', $languages ) ); ?></small></p>
