@@ -7,7 +7,7 @@
  * Author: Olivier Bigras
  * Author URI: https://olivierbigras.com
  * License: GPL v2 or later
- * Text Domain: translatepress-import-sync
+ * Text Domain: wpai-translatepress-sync
  * Requires at least: 5.0
  * Requires PHP: 7.4
  */

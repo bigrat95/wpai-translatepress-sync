@@ -4,7 +4,7 @@ Tags: translatepress, wp all import, translation, multilingual, woocommerce
 Requires at least: 5.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 3.1.0
+Stable tag: 3.4.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -92,6 +92,14 @@ Yes, TranslatePress SEO Pack addon is required for slug translations. Category n
 
 == Changelog ==
 
+= 3.4.0 =
+* Keep variation description translation meta for direct theme lookup
+* Prevents cleanup of `_trp_variation_desc_[lang]` meta so themes can access it directly
+
+= 3.3.0 =
+* FIX: Attribute translation for variations now correctly matches HTML entities
+* Improved variation-to-parent product attribute resolution
+
 = 3.1.0 =
 * NEW: Variation description translation support (`_trp_variation_desc_[lang]`)
 * NEW: Documentation for configuring variation descriptions in WP All Import
@@ -142,6 +150,12 @@ Yes, TranslatePress SEO Pack addon is required for slug translations. Category n
 * Initial release
 
 == Upgrade Notice ==
+
+= 3.4.0 =
+Keeps variation description translation meta for direct theme lookup.
+
+= 3.3.0 =
+Fixes attribute translation matching for variations with HTML entities.
 
 = 3.1.0 =
 Adds variation description translation support for WooCommerce product variations.
