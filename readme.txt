@@ -4,7 +4,7 @@ Tags: translatepress, wp all import, translation, multilingual, woocommerce
 Requires at least: 5.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 3.5.0
+Stable tag: 3.6.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -91,6 +91,12 @@ Yes, TranslatePress SEO Pack addon is required for slug translations. Category n
 3. Translations synced in TranslatePress
 
 == Changelog ==
+
+= 3.6.0 =
+* FIX: Multi-paragraph descriptions now translated correctly
+* TranslatePress detects each paragraph as a separate string; plugin now splits and inserts each paragraph pair individually
+* Logs a warning when paragraph counts don't match between original and translated text
+* Requires matching paragraph breaks (double newlines) in translated spreadsheet text
 
 = 3.5.0 =
 * FIX: Handle WordPress wptexturize() smart quotes in translation matching

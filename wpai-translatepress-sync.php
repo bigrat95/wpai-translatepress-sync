@@ -3,7 +3,7 @@
  * Plugin Name: TranslatePress Import Sync
  * Plugin URI: https://github.com/bigrat95/wpai-translatepress-sync
  * Description: Automatically sync translations from WP All Import to TranslatePress using the official Custom API. Map _trp_title_[lang] and _trp_content_[lang] custom fields in your import.
- * Version: 3.5.0
+ * Version: 3.6.0
  * Author: Olivier Bigras
  * Author URI: https://olivierbigras.com
  * License: GPL v2 or later
@@ -276,6 +276,18 @@ class WPAI_TranslatePress_Sync {
     }
 
     /**
+     * Split text into paragraphs by double line breaks
+     * Returns array of trimmed, non-empty paragraphs
+     * 
+     * @param string $text Text to split
+     * @return array Array of paragraph strings
+     */
+    private function split_paragraphs( $text ) {
+        $paragraphs = preg_split( '/\n\s*\n/', trim( $text ) );
+        return array_values( array_filter( array_map( 'trim', $paragraphs ) ) );
+    }
+
+    /**
      * Convert double line breaks to <br><br> and single to <br>
      * Preserves visual paragraph spacing without creating multiple <p> tags
      * 
@@ -383,17 +395,38 @@ class WPAI_TranslatePress_Sync {
                         continue;
                     }
 
-                    // Force update translation (delete existing first)
-                    $result = $this->force_insert_translation( 
-                        $original_value, 
-                        $translated_value, 
-                        $lang_code
-                    );
+                    // Split into paragraphs for multi-paragraph content
+                    // TranslatePress detects each <p> block as a separate translatable string
+                    $original_paragraphs = $this->split_paragraphs( $original_value );
+                    $translated_paragraphs = $this->split_paragraphs( $translated_value );
 
-                    if ( ! is_wp_error( $result ) && isset( $result['success'] ) && $result['success'] ) {
-                        $translations_added++;
-                    } elseif ( is_wp_error( $result ) ) {
-                        $this->log( sprintf( 'API Error for post #%d, field %s: %s', $post_id, $meta_key, $result->get_error_message() ) );
+                    if ( count( $original_paragraphs ) > 1 && count( $original_paragraphs ) === count( $translated_paragraphs ) ) {
+                        // Multi-paragraph: insert each paragraph pair individually
+                        $this->log( sprintf( 'Splitting into %d paragraphs for post #%d', count( $original_paragraphs ), $post_id ) );
+                        $para_success = 0;
+                        foreach ( $original_paragraphs as $i => $orig_para ) {
+                            $result = $this->force_insert_translation( $orig_para, $translated_paragraphs[ $i ], $lang_code );
+                            if ( ! is_wp_error( $result ) && isset( $result['success'] ) && $result['success'] ) {
+                                $para_success++;
+                            }
+                        }
+                        if ( $para_success > 0 ) {
+                            $translations_added++;
+                        }
+                    } else {
+                        // Single paragraph or paragraph count mismatch: insert as full block
+                        if ( count( $original_paragraphs ) > 1 && count( $original_paragraphs ) !== count( $translated_paragraphs ) ) {
+                            $this->log( sprintf(
+                                'WARNING: Paragraph count mismatch for post #%d - original has %d, translated has %d. Add matching paragraph breaks in your spreadsheet.',
+                                $post_id, count( $original_paragraphs ), count( $translated_paragraphs )
+                            ) );
+                        }
+                        $result = $this->force_insert_translation( $original_value, $translated_value, $lang_code );
+                        if ( ! is_wp_error( $result ) && isset( $result['success'] ) && $result['success'] ) {
+                            $translations_added++;
+                        } elseif ( is_wp_error( $result ) ) {
+                            $this->log( sprintf( 'API Error for post #%d, field %s: %s', $post_id, $meta_key, $result->get_error_message() ) );
+                        }
                     }
 
                     // Clean up temporary meta field
