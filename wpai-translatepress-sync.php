@@ -7,7 +7,7 @@
  * Author: Olivier Bigras
  * Author URI: https://olivierbigras.com
  * License: GPL v2 or later
- * Text Domain: wpai-translatepress-sync
+ * Text Domain: translatepress-import-sync
  * Requires at least: 5.0
  * Requires PHP: 7.4
  */
@@ -805,7 +805,11 @@ class WPAI_TranslatePress_Sync {
      * Register settings
      */
     public function register_settings() {
-        register_setting( 'wpai_trp_settings', 'wpai_trp_logging_enabled' );
+        register_setting( 'wpai_trp_settings', 'wpai_trp_logging_enabled', array(
+            'type'              => 'integer',
+            'sanitize_callback' => 'absint',
+            'default'           => 0,
+        ) );
     }
 
     /**
