@@ -18,10 +18,14 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 /**
  * =============================================================================
- * WP ALL IMPORT + TRANSLATEPRESS SYNC PLUGIN (v3 - Using Official API)
+ * WP ALL IMPORT + TRANSLATEPRESS SYNC PLUGIN (v3.13.0 - Using Official API)
  * =============================================================================
  * 
  * REQUIRES: TranslatePress Custom API plugin
+ * 
+ * NOTE: All paragraph separators (<p>, <br>, newlines) are automatically stripped
+ * from imported content. Both original and translated text become a single text
+ * block so TranslatePress always detects ONE string = ONE dictionary entry.
  * 
  * HOW TO USE IN WP ALL IMPORT:
  * 
@@ -106,10 +110,10 @@ class WPAI_TranslatePress_Sync {
     }
 
     /**
-     * Convert line breaks to <br> tags before WordPress saves the post
-     * This prevents wpautop() from creating multiple <p> tags
-     * Always runs during import to normalize paragraph breaks
+     * Flatten content to a single text block before WordPress saves the post
+     * Strips all paragraph separators so wpautop() wraps in ONE <p> tag
      * 
+     * @since 3.13.0 Strips to spaces instead of converting to <br>
      * @param array $article_data Post data being imported
      * @param object $import Import object
      * @param int $post_id Post ID (0 for new posts)
@@ -267,24 +271,18 @@ class WPAI_TranslatePress_Sync {
     }
 
     /**
-     * Flatten content into a single block for TranslatePress compatibility
+     * Flatten content into a single text block for TranslatePress compatibility
      * 
      * TranslatePress detects each block-level HTML element (<p>, <div>) as a
-     * separate translatable string. This function removes all block-level
-     * structure and replaces it with <br> tags, so the entire description is
-     * always detected as ONE string = ONE dictionary entry.
+     * separate translatable string. This function strips ALL paragraph separators
+     * and joins everything with spaces, so wpautop() wraps it in ONE <p> tag
+     * and TranslatePress always detects ONE string = ONE dictionary entry.
      * 
-     * Handles all known content formats:
-     * - Raw newlines from CSV/spreadsheet (\n, \r\n, \r)
-     * - <p> tags from WordPress editor or wpautop()
-     * - <div> wrappers from page builders or rich editors
-     * - Gutenberg block comments (<!-- wp:paragraph -->)
-     * - <br>, <br/>, <br /> variants
-     * - &nbsp; used as paragraph spacers
-     * - Mixed combinations of all the above
+     * Preserves inline HTML (<strong>, <em>, <a>, <span>, etc.).
      * 
+     * @since 3.13.0 Replaced <br> conversion with space-joining
      * @param string $content Content in any format
-     * @return string Flattened content with <br> as line separators
+     * @return string Single-line text block (no paragraph separators)
      */
     private function convert_linebreaks( $content ) {
         if ( empty( $content ) || ! is_string( $content ) ) {
@@ -313,59 +311,6 @@ class WPAI_TranslatePress_Sync {
         $content = preg_replace( '/\s{2,}/', ' ', $content );
 
         return trim( $content );
-    }
-
-    /**
-     * Split content into individual paragraphs for per-paragraph translation matching.
-     *
-     * TranslatePress detects each <p> block rendered by wpautop() as a separate
-     * translatable string. This method splits content into paragraphs regardless
-     * of format (double newlines, <p> tags, <br><br> from legacy flattening).
-     *
-     * @param string $content Content in any format
-     * @return array Array of trimmed paragraph strings (empty entries removed)
-     */
-    private function split_into_paragraphs( $content ) {
-        if ( empty( $content ) || ! is_string( $content ) ) {
-            return array();
-        }
-
-        // Strip Gutenberg block comments
-        $content = preg_replace( '/<!--\s*\/?\s*wp:\w+[^>]*?-->/s', '', $content );
-        $content = trim( $content );
-
-        if ( empty( $content ) ) {
-            return array();
-        }
-
-        // If content has <p> tags, extract inner content of each <p>
-        if ( preg_match( '/<p[\s>]/i', $content ) ) {
-            preg_match_all( '/<p[^>]*>(.*?)<\/p>/si', $content, $matches );
-            if ( ! empty( $matches[1] ) ) {
-                $paragraphs = array_map( 'trim', $matches[1] );
-                $paragraphs = array_filter( $paragraphs, 'strlen' );
-                if ( count( $paragraphs ) > 0 ) {
-                    return array_values( $paragraphs );
-                }
-            }
-        }
-
-        // If content has <br><br> (from legacy flattening), split on that
-        if ( preg_match( '/<br\s*\/?>\s*<br\s*\/?>/i', $content ) ) {
-            $parts = preg_split( '/<br\s*\/?>\s*<br\s*\/?>/i', $content );
-            $parts = array_map( 'trim', $parts );
-            $parts = array_filter( $parts, 'strlen' );
-            if ( count( $parts ) > 0 ) {
-                return array_values( $parts );
-            }
-        }
-
-        // Split by double newlines (standard WordPress paragraph separator)
-        $parts = preg_split( '/\r?\n\s*\r?\n/', $content );
-        $parts = array_map( 'trim', $parts );
-        $parts = array_filter( $parts, 'strlen' );
-
-        return array_values( $parts );
     }
 
     /**
@@ -843,96 +788,6 @@ class WPAI_TranslatePress_Sync {
         echo '<div class="notice notice-info is-dismissible"><p><strong>TranslatePress Import Sync</strong> is active. <a href="' . esc_url( $url ) . '">View field reference &amp; logs &rarr;</a></p></div>';
     }
 
-    /* ── Legacy notice HTML removed in v3.11.0 — all field reference moved to Settings → TP Import Sync ──
-     * The inline notice below is no longer rendered (function returns above).
-     */
-    private function _legacy_notice_unused() {
-        $languages = $this->get_translation_languages();
-        $lang_examples = ! empty( $languages ) ? implode( ', ', array_slice( $languages, 0, 2 ) ) : 'fr_CA';
-
-        $first_lang = ! empty( $languages ) ? $languages[0] : 'fr_CA';
-        ?>
-        <div class="notice notice-info is-dismissible" id="wpai-trp-notice">
-            <p><strong>📝 TranslatePress Sync Active v3.10.0</strong> (Force Update Mode)</p>
-            
-            <p><strong>📄 Post/Product Fields:</strong></p>
-            <ul style="list-style: disc; margin-left: 20px;">
-                <li><code>_trp_title_<?php echo esc_html( $first_lang ); ?></code> → Translated title</li>
-                <li><code>_trp_content_<?php echo esc_html( $first_lang ); ?></code> → Translated content</li>
-                <li><code>_trp_excerpt_<?php echo esc_html( $first_lang ); ?></code> → Translated excerpt (optional)</li>
-            </ul>
-            
-            <p style="margin-top: 10px;"><strong>🔄 WooCommerce Variations:</strong></p>
-            <ul style="list-style: disc; margin-left: 20px;">
-                <li><code>_variation_description</code> → Default language variation description (standard WooCommerce field)</li>
-                <li><code>_trp_variation_desc_<?php echo esc_html( $first_lang ); ?></code> → Translated variation description</li>
-            </ul>
-            
-            <p style="margin-top: 10px;"><strong>🏷️ WooCommerce Categories:</strong></p>
-            <ul style="list-style: disc; margin-left: 20px;">
-                <li><code>_trp_cat_<?php echo esc_html( $first_lang ); ?></code> → Translated category names (pipe-separated: "Chaises|Tables")</li>
-                <li><code>_trp_cat_slug_<?php echo esc_html( $first_lang ); ?></code> → Translated category slugs (requires SEO Pack)</li>
-            </ul>
-            
-            <p style="margin-top: 10px;"><strong>🎨 WooCommerce Attributes:</strong></p>
-            <ul style="list-style: disc; margin-left: 20px;">
-                <li><code>_trp_attr_[slug]_<?php echo esc_html( $first_lang ); ?></code> → Translated attribute values (pipe-separated)</li>
-                <li>Example: <code>_trp_attr_color_<?php echo esc_html( $first_lang ); ?></code> = "Rouge|Bleu|Vert"</li>
-            </ul>
-            
-            <?php
-            // Get all WooCommerce product attributes
-            if ( function_exists( 'wc_get_attribute_taxonomies' ) ) {
-                $attribute_taxonomies = wc_get_attribute_taxonomies();
-                if ( ! empty( $attribute_taxonomies ) ) {
-                    ?>
-                    <details style="margin-top: 10px; padding: 10px; background: #f9f9f9; border: 1px solid #ddd; border-radius: 4px;">
-                        <summary style="cursor: pointer; font-weight: bold; color: #0073aa;">
-                            📋 Available Attribute Fields (<?php echo count( $attribute_taxonomies ); ?> attributes × <?php echo count( $languages ); ?> languages = <?php echo count( $attribute_taxonomies ) * count( $languages ); ?> fields)
-                        </summary>
-                        <div style="margin-top: 10px; max-height: 300px; overflow-y: auto;">
-                            <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
-                                <thead>
-                                    <tr style="background: #e0e0e0;">
-                                        <th style="padding: 5px; text-align: left; border: 1px solid #ccc;">Attribute</th>
-                                        <?php foreach ( $languages as $lang ) : ?>
-                                            <th style="padding: 5px; text-align: left; border: 1px solid #ccc;"><?php echo esc_html( $lang ); ?></th>
-                                        <?php endforeach; ?>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php foreach ( $attribute_taxonomies as $attribute ) : ?>
-                                        <tr>
-                                            <td style="padding: 5px; border: 1px solid #ccc; font-weight: bold;">
-                                                <?php echo esc_html( $attribute->attribute_label ); ?>
-                                                <br><small style="color: #666;">pa_<?php echo esc_html( $attribute->attribute_name ); ?></small>
-                                            </td>
-                                            <?php foreach ( $languages as $lang ) : ?>
-                                                <td style="padding: 5px; border: 1px solid #ccc;">
-                                                    <code style="font-size: 11px; background: #fff; padding: 2px 4px;">_trp_attr_<?php echo esc_html( $attribute->attribute_name ); ?>_<?php echo esc_html( $lang ); ?></code>
-                                                </td>
-                                            <?php endforeach; ?>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                </tbody>
-                            </table>
-                            <p style="margin-top: 10px; font-size: 11px; color: #666;">
-                                <strong>💡 Tip:</strong> Copy the field name and paste it in WP All Import custom fields. Values should be pipe-separated (e.g., "Rouge|Bleu|Vert").
-                            </p>
-                        </div>
-                    </details>
-                    <?php
-                }
-            }
-            ?>
-            
-            <p style="margin-top: 10px;"><strong>⚡ Paragraph Normalization:</strong> Line breaks are automatically converted to <code>&lt;br&gt;</code> tags so TranslatePress always detects one string per description. No extra fields needed.</p>
-            
-            <p style="margin-top: 10px;"><strong>🔒 Auto-Translation Protection:</strong> All imported translations are saved with <strong>status 2 (Human Reviewed)</strong>.</p>
-            <p><small>Configured languages: <?php echo esc_html( implode( ', ', $languages ) ); ?></small></p>
-        </div>
-        <?php
-    }
     /**
      * Register admin menu page under Settings
      */

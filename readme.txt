@@ -23,7 +23,7 @@ Automatically sync translations from WP All Import to TranslatePress using the o
 * **Variable Products** - Full support for WooCommerce variable products and variations
 * **Multiple Languages** - Import all your languages simultaneously
 * **Human Reviewed Status** - Translations are marked as "Human Reviewed" (status 2) so auto-translation won't overwrite them
-* **Automatic Paragraph Normalization** - Line breaks are automatically converted to `<br>` tags so TranslatePress always matches one string per description
+* **Automatic Paragraph Stripping** - All paragraph breaks are stripped into a single text block so TranslatePress always matches one string per description
 
 = Requirements =
 

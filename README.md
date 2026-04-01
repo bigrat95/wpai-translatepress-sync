@@ -5,7 +5,7 @@ Automatically sync translations from WP All Import to TranslatePress using the o
 **Author:** Olivier Bigras  
 **Website:** [olivierbigras.com](https://olivierbigras.com)  
 **Email:** oli@olivierbigras.com  
-**Version:** 3.8.1  
+**Version:** 3.13.0  
 **License:** GPL v2 or later
 
 ---
@@ -32,13 +32,14 @@ Automatically sync translations from WP All Import to TranslatePress using the o
 
 When you run a WP All Import, the plugin:
 
-1. **Flattens content** into a single block (strips `<p>`, `<div>` tags, converts newlines to `<br>` tags)
+1. **Strips all paragraph breaks** from content into a single text block (no `<p>`, `<div>`, `<br>`, or newlines — only spaces)
 2. Captures translated content from special custom fields you map
 3. Handles smart quote mismatches (WordPress `wptexturize()` conversions)
 4. Uses the official TranslatePress Custom API to insert translations
 5. Marks translations as "Human Reviewed" (status 2)
-6. Updates the post content in the database to ensure TranslatePress detects one string per description
-7. Cleans up the temporary custom fields after import
+6. Persists the flattened content to the database so `wpautop()` wraps it in ONE `<p>` tag and TranslatePress detects one string per description
+7. Safety-net hook re-flattens content if WooCommerce or other plugins revert it
+8. Cleans up the temporary custom fields after import
 
 ---
 
@@ -190,22 +191,22 @@ The plugin automatically detects all configured languages from TranslatePress.
 
 ## Automatic Content Normalization
 
-TranslatePress detects each `<p>` block as a separate translatable string. Without normalization, a 3-paragraph description would require 3 separate dictionary entries — making translation matching unreliable.
+TranslatePress detects each `<p>` block as a separate translatable string. Without normalization, a 3-paragraph description would require 3 separate dictionary entries — making translation matching unreliable, especially when the original and translated text have different paragraph counts.
 
-The plugin **automatically flattens all content** into a single block. No extra configuration needed.
+Since v3.13.0, the plugin **strips ALL paragraph separators** and joins content with spaces into a single text block. `wpautop()` then wraps it in ONE `<p>` tag, so TranslatePress always detects ONE string = ONE dictionary entry.
 
-### What It Handles
+### What It Strips
 
 | Content Format | Action |
 |---|---|
-| `\n\n` (double newlines from CSV) | Converted to `<br><br>` |
-| `\n` (single newlines) | Converted to `<br>` |
-| `<p>...</p>` tags (from editors) | Stripped, replaced with `<br><br>` |
-| `<div>...</div>` wrappers | Stripped, replaced with `<br><br>` |
+| `\n\n` (double newlines from CSV) | Replaced with space |
+| `\n` (single newlines) | Replaced with space |
+| `<p>...</p>` tags (from editors) | Stripped, replaced with space |
+| `<div>...</div>` wrappers | Stripped, replaced with space |
 | `<!-- wp:paragraph -->` (Gutenberg) | Stripped |
-| `<br/>`, `<br />` variants | Normalized to `<br>` |
-| Multiple `&nbsp;` spacers | Collapsed to `<br><br>` |
-| Mixed combinations | All handled |
+| `<br>`, `<br/>`, `<br />` variants | Replaced with space |
+| `&nbsp;` entities | Replaced with space |
+| Multiple consecutive spaces | Collapsed to one space |
 
 ### What It Preserves
 
@@ -219,13 +220,13 @@ The plugin **automatically flattens all content** into a single block. No extra 
 ### Result
 
 - Your entire description is always ONE string in TranslatePress
-- Visual paragraph spacing is preserved with `<br>` tags
-- English and French translations match 1:1
+- English and French translations match 1:1 regardless of paragraph count
 - Works with content, excerpts, and variation descriptions
+- No visual paragraph breaks (content renders as a single block of text)
 
 ### Example
 
-CSV input (or content with `<p>` tags, `<div>` wrappers, etc.):
+CSV input (3 paragraphs in English, 4 paragraphs in French — doesn't matter):
 ```
 Paragraph 1...
 
@@ -235,9 +236,16 @@ Paragraph 3...
 ```
 
 Saved in WordPress as:
-```html
-Paragraph 1...<br><br>Paragraph 2...<br><br>Paragraph 3...
 ```
+Paragraph 1... Paragraph 2... Paragraph 3...
+```
+
+Rendered on frontend:
+```html
+<p>Paragraph 1... Paragraph 2... Paragraph 3...</p>
+```
+
+TranslatePress detects ONE string → dictionary matches → French version displays correctly.
 
 > **Note:** The `_trp_convert_linebreaks` custom field from v2.x is no longer needed. Normalization always happens automatically.
 
@@ -295,17 +303,23 @@ trpc_get_languages();
 
 ## Debugging
 
-Enable WordPress debug mode to see import logs:
+The plugin has a built-in log viewer under **Settings → TP Import Sync → Logs**.
+
+1. Enable logging on the Logs tab
+2. Run your import
+3. Check the log for entries like:
+```
+Flattened post_content for post #4497 (523 chars)
+Added 1 translations for post #4497
+SAFETY NET: Normalized post_content for post #4497
+```
+
+You can also enable WordPress debug mode for additional output in `wp-content/debug.log`:
 
 ```php
 // In wp-config.php
 define( 'WP_DEBUG', true );
 define( 'WP_DEBUG_LOG', true );
-```
-
-Check `wp-content/debug.log` for entries like:
-```
-[WPAI-TRP-Sync] Added 2 translations for post #123
 ```
 
 ---
@@ -344,30 +358,42 @@ Check `wp-content/debug.log` for entries like:
 
 ## Changelog
 
+### 3.13.0
+- **FIX:** Strip ALL paragraph separators into a single text block (spaces only, no `<br>`)
+- `wpautop()` wraps in ONE `<p>` = TranslatePress detects ONE string = dictionary always matches
+- Works regardless of paragraph count differences between languages
+- Re-enabled content flattening hook and safety-net DB update
+
+### 3.12.0
+- Per-paragraph translation matching (superseded by 3.13.0)
+
+### 3.11.0
+- **NEW:** Full plugin dashboard under Settings → TP Import Sync
+- Tabbed interface: Dashboard (system status), Field Reference (auto-detected fields with copy buttons), Logs
+- Auto-detects TranslatePress languages, WooCommerce attributes, and all available translation fields
+- WP All Import admin notice slimmed to a link to the dashboard
+
+### 3.10.0
+- Admin settings page with log viewer and logging toggle
+
+### 3.9.0
+- **FIX:** Content normalization now persists in database (direct DB update bypasses WooCommerce hooks)
+- Added safety-net normalization on `pmxi_after_post_import` hook
+- Fixes mixed English/French display caused by WooCommerce reverting normalized content
+
 ### 3.8.1
 - **FIX:** Variation description translations now always normalized
-- **FIX:** Original variation description also normalized before dictionary insertion
 - **FIX:** post_excerpt normalization now also updates the DB
-- Removed last remaining `_trp_convert_linebreaks` reference
 
 ### 3.8.0
-- Bulletproof content flattening: handles ALL content formats, never skips
-- Strips `<p>`, `</p>`, `<div>`, `</div>` tags and replaces with `<br><br>`
-- Strips Gutenberg block comments (`<!-- wp:paragraph -->`)
-- Normalizes all `<br>` variants (`<br>`, `<br/>`, `<br />`)
-- Collapses excessive `<br>` tags and `&nbsp;` spacers
-- Handles mixed content: `<p>` tags + newlines + `<br>` + `<div>` in any combination
-- Cleans up leading/trailing `<br>` tags
+- Bulletproof content flattening: handles ALL content formats
+- Strips `<p>`, `<div>`, Gutenberg blocks, `<br>` variants, `&nbsp;` spacers
 
 ### 3.7.0
-- Auto-normalize paragraph breaks in both original and translated content
-- Updates post_content in DB automatically when paragraph breaks are found
-- `_trp_convert_linebreaks` custom field is no longer required
+- Auto-normalize paragraph breaks (replaces manual `_trp_convert_linebreaks` field)
 
 ### 3.5.0
 - **FIX:** Handle WordPress `wptexturize()` smart quotes in translation matching
-- Inserts translations for raw, HTML-encoded, and smart-quoted string variants
-- Updates existing auto-detected dictionary entries
 
 ### 3.4.0
 - Keep variation description translation meta for direct theme lookup
@@ -380,7 +406,6 @@ Check `wp-content/debug.log` for entries like:
 
 ### 3.0.0
 - **NEW:** Full support for WooCommerce variable products and variations
-- **NEW:** Automatic parent product detection for variations
 - Force update mode: existing translations are always overwritten
 
 ### 2.3.0
