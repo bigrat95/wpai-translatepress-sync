@@ -4,7 +4,7 @@ Tags: translatepress, wp all import, translation, multilingual, woocommerce
 Requires at least: 5.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 3.10.0
+Stable tag: 3.11.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -92,12 +92,16 @@ Yes, TranslatePress SEO Pack addon is required for slug translations. Category n
 
 == Changelog ==
 
+= 3.11.0 =
+* NEW: Full plugin dashboard under Tools → TRP Import Sync
+* Tabbed interface: Dashboard (system status), Field Reference (auto-detected fields with copy buttons), Logs
+* Auto-detects TranslatePress languages, WooCommerce attributes, and all available translation fields
+* Copy-to-clipboard button on every field name for easy WP All Import mapping
+* Scrollable attributes table with sticky header
+* WP All Import admin notice now slim link to dashboard instead of huge inline HTML
+
 = 3.10.0 =
-* NEW: Admin settings page under Tools → TRP Sync Logs
-* Toggle logging on/off from the dashboard
-* View import logs in a dark-themed viewer directly in WordPress
-* Clear log button with one click
-* Logs write to plugin's own file (no WP_DEBUG required)
+* Admin settings page with log viewer and logging toggle
 
 = 3.9.0 =
 * FIX: Content normalization now persists in database (uses direct DB update instead of wp_update_post)
@@ -199,8 +203,11 @@ Yes, TranslatePress SEO Pack addon is required for slug translations. Category n
 
 == Upgrade Notice ==
 
+= 3.11.0 =
+Full plugin dashboard with tabbed UI: Dashboard, Field Reference (with copy buttons), and Logs.
+
 = 3.10.0 =
-New admin log viewer under Tools. Toggle logging on/off, view and clear logs from the dashboard.
+Admin log viewer under Tools.
 
 = 3.9.0 =
 Critical fix: content normalization now persists. Bypasses WooCommerce hooks that reverted changes. Adds safety-net normalization.

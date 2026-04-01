@@ -3,7 +3,7 @@
  * Plugin Name: TranslatePress Import Sync
  * Plugin URI: https://github.com/bigrat95/wpai-translatepress-sync
  * Description: Automatically sync translations from WP All Import to TranslatePress using the official Custom API. Map _trp_title_[lang] and _trp_content_[lang] custom fields in your import.
- * Version: 3.10.0
+ * Version: 3.11.0
  * Author: Olivier Bigras
  * Author URI: https://olivierbigras.com
  * License: GPL v2 or later
@@ -811,17 +811,18 @@ class WPAI_TranslatePress_Sync {
         if ( ! $screen || strpos( $screen->id, 'pmxi' ) === false ) {
             return;
         }
-
-        // Check if TranslatePress Custom API is available
         if ( ! function_exists( 'trpc_insert_translation' ) ) {
-            ?>
-            <div class="notice notice-error">
-                <p><strong>WP All Import - TranslatePress Sync:</strong> TranslatePress Custom API plugin is required. Please install and activate it.</p>
-            </div>
-            <?php
+            echo '<div class="notice notice-error"><p><strong>TranslatePress Import Sync:</strong> TranslatePress Custom API is required. <a href="' . esc_url( admin_url( 'plugins.php' ) ) . '">Manage Plugins</a></p></div>';
             return;
         }
+        $url = admin_url( 'tools.php?page=wpai-trp-sync' );
+        echo '<div class="notice notice-info is-dismissible"><p><strong>TranslatePress Import Sync</strong> is active. <a href="' . esc_url( $url ) . '">View field reference &amp; logs &rarr;</a></p></div>';
+    }
 
+    /* ── Legacy notice HTML removed in v3.11.0 — all field reference moved to Tools → TRP Import Sync ──
+     * The inline notice below is no longer rendered (function returns above).
+     */
+    private function _legacy_notice_unused() {
         $languages = $this->get_translation_languages();
         $lang_examples = ! empty( $languages ) ? implode( ', ', array_slice( $languages, 0, 2 ) ) : 'fr_CA';
 
@@ -913,11 +914,11 @@ class WPAI_TranslatePress_Sync {
      */
     public function add_admin_menu() {
         add_management_page(
-            'TranslatePress Sync',
-            'TRP Sync Logs',
+            'TranslatePress Import Sync',
+            'TRP Import Sync',
             'manage_options',
             'wpai-trp-sync',
-            array( $this, 'render_settings_page' )
+            array( $this, 'render_admin_page' )
         );
     }
 
@@ -936,68 +937,249 @@ class WPAI_TranslatePress_Sync {
             if ( file_exists( $this->log_file ) ) {
                 @unlink( $this->log_file );
             }
-            wp_redirect( admin_url( 'tools.php?page=wpai-trp-sync&cleared=1' ) );
+            wp_redirect( admin_url( 'tools.php?page=wpai-trp-sync&tab=logs&cleared=1' ) );
             exit;
         }
     }
 
     /**
-     * Render the settings / log viewer page
+     * Render the main admin page with tabs
      */
-    public function render_settings_page() {
+    public function render_admin_page() {
+        $active_tab = isset( $_GET['tab'] ) ? sanitize_key( $_GET['tab'] ) : 'dashboard';
+        $languages  = $this->get_translation_languages();
+        $first_lang = ! empty( $languages ) ? $languages[0] : 'fr_CA';
+        ?>
+        <div class="wrap">
+            <h1>TranslatePress Import Sync <small style="font-weight:normal;color:#999;">v3.11.0</small></h1>
+            <nav class="nav-tab-wrapper">
+                <a href="?page=wpai-trp-sync&tab=dashboard" class="nav-tab <?php echo $active_tab === 'dashboard' ? 'nav-tab-active' : ''; ?>">Dashboard</a>
+                <a href="?page=wpai-trp-sync&tab=fields" class="nav-tab <?php echo $active_tab === 'fields' ? 'nav-tab-active' : ''; ?>">Field Reference</a>
+                <a href="?page=wpai-trp-sync&tab=logs" class="nav-tab <?php echo $active_tab === 'logs' ? 'nav-tab-active' : ''; ?>">Logs</a>
+            </nav>
+            <div style="margin-top:20px;">
+            <?php
+            switch ( $active_tab ) {
+                case 'fields':
+                    $this->render_tab_fields( $languages );
+                    break;
+                case 'logs':
+                    $this->render_tab_logs();
+                    break;
+                default:
+                    $this->render_tab_dashboard( $languages );
+                    break;
+            }
+            ?>
+            </div>
+        </div>
+        <script>
+        function wpaiTrpCopy(text, btn) {
+            navigator.clipboard.writeText(text).then(function() {
+                var orig = btn.textContent;
+                btn.textContent = 'Copied!';
+                btn.style.color = '#00a32a';
+                setTimeout(function() { btn.textContent = orig; btn.style.color = ''; }, 1200);
+            });
+        }
+        </script>
+        <?php
+    }
+
+    /**
+     * Dashboard tab — system status and how-it-works
+     */
+    private function render_tab_dashboard( $languages ) {
+        $ok = '<span style="color:#00a32a;font-weight:bold;">&#10003;</span>';
+        $no = '<span style="color:#d63638;font-weight:bold;">&#10007;</span>';
+        $has_trp  = function_exists( 'trpc_insert_translation' );
+        $has_wc   = class_exists( 'WooCommerce' );
+        $has_wpai = class_exists( 'PMXI_Plugin' );
+        ?>
+        <div class="card" style="max-width:800px;">
+            <h2 style="margin-top:0;">System Status</h2>
+            <table class="widefat striped" style="max-width:600px;">
+                <tbody>
+                    <tr><td><strong>TranslatePress</strong></td><td><?php echo class_exists( 'TRP_Translate_Press' ) ? $ok . ' Active' : $no . ' Not found'; ?></td></tr>
+                    <tr><td><strong>TranslatePress Custom API</strong></td><td><?php echo $has_trp ? $ok . ' Active' : $no . ' Required &mdash; <a href="' . esc_url( admin_url( 'plugins.php' ) ) . '">install it</a>'; ?></td></tr>
+                    <tr><td><strong>WP All Import</strong></td><td><?php echo $has_wpai ? $ok . ' Active' : $no . ' Not found'; ?></td></tr>
+                    <tr><td><strong>WooCommerce</strong></td><td><?php echo $has_wc ? $ok . ' Active' : '&mdash; Not required'; ?></td></tr>
+                    <tr><td><strong>Translation Languages</strong></td><td><?php echo ! empty( $languages ) ? esc_html( implode( ', ', $languages ) ) : $no . ' None detected'; ?></td></tr>
+                    <tr><td><strong>Logging</strong></td><td><?php echo get_option( 'wpai_trp_logging_enabled', 0 ) ? $ok . ' Enabled' : '&mdash; Disabled'; ?> (<a href="?page=wpai-trp-sync&tab=logs">manage</a>)</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="card" style="max-width:800px;margin-top:20px;">
+            <h2 style="margin-top:0;">How It Works</h2>
+            <ol>
+                <li>Map your <strong>default language</strong> fields normally in WP All Import (Title, Content, Excerpt).</li>
+                <li>Add <strong>custom fields</strong> for each translation (see <a href="?page=wpai-trp-sync&tab=fields">Field Reference</a>).</li>
+                <li>Run the import &mdash; translations are <strong>automatically synced</strong> to TranslatePress.</li>
+            </ol>
+            <h3>Automatic Features</h3>
+            <ul style="list-style:disc;margin-left:20px;">
+                <li>Multi-paragraph content is flattened so TranslatePress detects <strong>one string per description</strong>.</li>
+                <li>Inline formatting (<code>&lt;strong&gt;</code>, <code>&lt;em&gt;</code>, <code>&lt;a&gt;</code>) is preserved.</li>
+                <li>All translations are saved as <strong>Human Reviewed</strong> (status 2).</li>
+                <li>Smart quotes from <code>wptexturize()</code> are handled automatically.</li>
+            </ul>
+        </div>
+        <?php
+    }
+
+    /**
+     * Field Reference tab — auto-detected fields with copy buttons
+     */
+    private function render_tab_fields( $languages ) {
+        ?>
+        <style>
+            .wpai-trp-field { display:inline-flex; align-items:center; gap:4px; }
+            .wpai-trp-field code { font-size:12px; background:#f0f0f1; padding:3px 6px; border-radius:3px; }
+            .wpai-trp-copy { cursor:pointer; font-size:11px; color:#2271b1; border:none; background:none; padding:2px 6px; }
+            .wpai-trp-copy:hover { text-decoration:underline; }
+            .wpai-trp-section { margin-bottom:24px; max-width:900px; }
+            .wpai-trp-section h3 { margin-bottom:8px; }
+        </style>
+
+        <div class="wpai-trp-section">
+            <h3>Post / Product Fields</h3>
+            <table class="widefat striped">
+                <thead><tr><th>Purpose</th><?php foreach ( $languages as $l ) echo '<th>' . esc_html( $l ) . '</th>'; ?></tr></thead>
+                <tbody>
+                <?php
+                $fields = array(
+                    'Translated Title'   => '_trp_title_',
+                    'Translated Content' => '_trp_content_',
+                    'Translated Excerpt' => '_trp_excerpt_',
+                );
+                foreach ( $fields as $label => $prefix ) {
+                    echo '<tr><td><strong>' . esc_html( $label ) . '</strong></td>';
+                    foreach ( $languages as $lang ) {
+                        $f = $prefix . $lang;
+                        echo '<td><span class="wpai-trp-field"><code>' . esc_html( $f ) . '</code>';
+                        echo '<button class="wpai-trp-copy" data-v="' . esc_attr( $f ) . '" onclick="wpaiTrpCopy(this.dataset.v,this)">copy</button></span></td>';
+                    }
+                    echo '</tr>';
+                }
+                ?>
+                </tbody>
+            </table>
+        </div>
+
+        <?php if ( class_exists( 'WooCommerce' ) ) : ?>
+
+        <div class="wpai-trp-section">
+            <h3>WooCommerce Variations</h3>
+            <table class="widefat striped">
+                <thead><tr><th>Purpose</th><?php foreach ( $languages as $l ) echo '<th>' . esc_html( $l ) . '</th>'; ?></tr></thead>
+                <tbody><tr><td><strong>Variation Description</strong></td>
+                <?php foreach ( $languages as $lang ) {
+                    $f = '_trp_variation_desc_' . $lang;
+                    echo '<td><span class="wpai-trp-field"><code>' . esc_html( $f ) . '</code>';
+                    echo '<button class="wpai-trp-copy" data-v="' . esc_attr( $f ) . '" onclick="wpaiTrpCopy(this.dataset.v,this)">copy</button></span></td>';
+                } ?>
+                </tr></tbody>
+            </table>
+        </div>
+
+        <div class="wpai-trp-section">
+            <h3>WooCommerce Categories</h3>
+            <table class="widefat striped">
+                <thead><tr><th>Purpose</th><?php foreach ( $languages as $l ) echo '<th>' . esc_html( $l ) . '</th>'; ?></tr></thead>
+                <tbody>
+                <?php
+                $cat_fields = array(
+                    'Category Names (pipe-separated)' => '_trp_cat_',
+                    'Category Slugs (SEO Pack required)' => '_trp_cat_slug_',
+                );
+                foreach ( $cat_fields as $label => $prefix ) {
+                    echo '<tr><td><strong>' . esc_html( $label ) . '</strong></td>';
+                    foreach ( $languages as $lang ) {
+                        $f = $prefix . $lang;
+                        echo '<td><span class="wpai-trp-field"><code>' . esc_html( $f ) . '</code>';
+                        echo '<button class="wpai-trp-copy" data-v="' . esc_attr( $f ) . '" onclick="wpaiTrpCopy(this.dataset.v,this)">copy</button></span></td>';
+                    }
+                    echo '</tr>';
+                }
+                ?>
+                </tbody>
+            </table>
+        </div>
+
+        <?php if ( function_exists( 'wc_get_attribute_taxonomies' ) ) :
+            $attributes = wc_get_attribute_taxonomies();
+            if ( ! empty( $attributes ) ) : ?>
+        <div class="wpai-trp-section">
+            <h3>WooCommerce Attributes <small style="font-weight:normal;color:#666;">(<?php echo count( $attributes ); ?> detected)</small></h3>
+            <p style="margin-bottom:8px;font-size:13px;color:#555;">Values should be pipe-separated, e.g. <code>"Rouge|Bleu|Vert"</code></p>
+            <div style="max-height:400px;overflow-y:auto;border:1px solid #c3c4c7;border-radius:4px;">
+                <table class="widefat striped" style="margin:0;">
+                    <thead style="position:sticky;top:0;z-index:1;background:#f6f7f7;">
+                        <tr><th>Attribute</th><?php foreach ( $languages as $l ) echo '<th>' . esc_html( $l ) . '</th>'; ?></tr>
+                    </thead>
+                    <tbody>
+                    <?php foreach ( $attributes as $attr ) {
+                        echo '<tr><td><strong>' . esc_html( $attr->attribute_label ) . '</strong><br><small style="color:#666;">pa_' . esc_html( $attr->attribute_name ) . '</small></td>';
+                        foreach ( $languages as $lang ) {
+                            $f = '_trp_attr_' . $attr->attribute_name . '_' . $lang;
+                            echo '<td><span class="wpai-trp-field"><code style="font-size:11px;">' . esc_html( $f ) . '</code>';
+                            echo '<button class="wpai-trp-copy" data-v="' . esc_attr( $f ) . '" onclick="wpaiTrpCopy(this.dataset.v,this)">copy</button></span></td>';
+                        }
+                        echo '</tr>';
+                    } ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <?php endif; endif; ?>
+        <?php endif; // WooCommerce
+    }
+
+    /**
+     * Logs tab — enable/disable logging and view log
+     */
+    private function render_tab_logs() {
         $logging_enabled = get_option( 'wpai_trp_logging_enabled', 0 );
         $log_content     = '';
         if ( file_exists( $this->log_file ) ) {
             $log_content = file_get_contents( $this->log_file );
         }
         $log_size = file_exists( $this->log_file ) ? size_format( filesize( $this->log_file ) ) : '0 B';
+
+        if ( isset( $_GET['cleared'] ) ) {
+            echo '<div class="notice notice-success is-dismissible"><p>Log cleared.</p></div>';
+        }
+        if ( isset( $_GET['settings-updated'] ) ) {
+            echo '<div class="notice notice-success is-dismissible"><p>Settings saved.</p></div>';
+        }
         ?>
-        <div class="wrap">
-            <h1>TranslatePress Sync — Logs & Settings</h1>
-
-            <?php if ( isset( $_GET['cleared'] ) ) : ?>
-                <div class="notice notice-success is-dismissible"><p>Log cleared.</p></div>
-            <?php endif; ?>
-            <?php if ( isset( $_GET['settings-updated'] ) ) : ?>
-                <div class="notice notice-success is-dismissible"><p>Settings saved.</p></div>
-            <?php endif; ?>
-
-            <!-- Settings -->
-            <form method="post" action="options.php">
-                <?php settings_fields( 'wpai_trp_settings' ); ?>
-                <table class="form-table">
-                    <tr>
-                        <th scope="row">Enable Logging</th>
-                        <td>
-                            <label>
-                                <input type="checkbox" name="wpai_trp_logging_enabled" value="1" <?php checked( $logging_enabled, 1 ); ?> />
-                                Write detailed import logs (visible below)
-                            </label>
-                            <p class="description">Turn this on before running an import, then check the log below. Turn off when not debugging to save disk space.</p>
-                        </td>
-                    </tr>
-                </table>
-                <?php submit_button( 'Save Settings' ); ?>
+        <form method="post" action="options.php">
+            <?php settings_fields( 'wpai_trp_settings' ); ?>
+            <table class="form-table">
+                <tr>
+                    <th scope="row">Enable Logging</th>
+                    <td>
+                        <label>
+                            <input type="checkbox" name="wpai_trp_logging_enabled" value="1" <?php checked( $logging_enabled, 1 ); ?> />
+                            Write detailed import logs
+                        </label>
+                        <p class="description">Enable before running an import. Disable when not debugging to save disk space.</p>
+                    </td>
+                </tr>
+            </table>
+            <?php submit_button( 'Save Settings' ); ?>
+        </form>
+        <hr />
+        <h2>Import Log <small style="font-weight:normal;color:#666;">(<?php echo esc_html( $log_size ); ?>)</small></h2>
+        <?php if ( ! empty( $log_content ) ) : ?>
+            <form method="post" style="margin-bottom:10px;">
+                <?php wp_nonce_field( 'wpai_trp_clear_log_nonce' ); ?>
+                <button type="submit" name="wpai_trp_clear_log" class="button button-secondary" onclick="return confirm('Clear the entire log?');">Clear Log</button>
             </form>
-
-            <hr />
-
-            <!-- Log viewer -->
-            <h2>Import Log <small style="font-weight:normal;color:#666;">(<?php echo esc_html( $log_size ); ?>)</small></h2>
-
-            <?php if ( ! empty( $log_content ) ) : ?>
-                <form method="post" style="margin-bottom:10px;">
-                    <?php wp_nonce_field( 'wpai_trp_clear_log_nonce' ); ?>
-                    <button type="submit" name="wpai_trp_clear_log" class="button button-secondary" onclick="return confirm('Clear the entire log?');">
-                        🗑️ Clear Log
-                    </button>
-                </form>
-                <textarea readonly style="width:100%;height:500px;font-family:monospace;font-size:12px;background:#1e1e1e;color:#d4d4d4;padding:12px;border-radius:4px;"><?php echo esc_textarea( $log_content ); ?></textarea>
-            <?php else : ?>
-                <p style="color:#666;">No log entries yet. Enable logging above and run an import.</p>
-            <?php endif; ?>
-        </div>
-        <?php
+            <textarea readonly style="width:100%;height:500px;font-family:monospace;font-size:12px;background:#1e1e1e;color:#d4d4d4;padding:12px;border-radius:4px;"><?php echo esc_textarea( $log_content ); ?></textarea>
+        <?php else : ?>
+            <p style="color:#666;">No log entries yet. Enable logging above and run an import.</p>
+        <?php endif;
     }
 }
 
