@@ -3,7 +3,7 @@
  * Plugin Name: TranslatePress Import Sync
  * Plugin URI: https://github.com/bigrat95/wpai-translatepress-sync
  * Description: Automatically sync translations from WP All Import to TranslatePress using the official Custom API. Map _trp_title_[lang] and _trp_content_[lang] custom fields in your import.
- * Version: 3.6.0
+ * Version: 3.7.0
  * Author: Olivier Bigras
  * Author URI: https://olivierbigras.com
  * License: GPL v2 or later
@@ -91,58 +91,19 @@ class WPAI_TranslatePress_Sync {
     }
 
     /**
-     * Check if line break conversion is enabled for this import
-     * Looks for _trp_convert_linebreaks custom field in the import data
-     * 
-     * @param array $article_data Post data being imported
-     * @return bool
-     */
-    private function is_linebreak_conversion_enabled( $article_data ) {
-        try {
-            if ( ! is_array( $article_data ) ) {
-                return false;
-            }
-            
-            // Check in custom fields being imported
-            if ( ! isset( $article_data['post_meta'] ) || ! is_array( $article_data['post_meta'] ) ) {
-                return false;
-            }
-            
-            foreach ( $article_data['post_meta'] as $meta ) {
-                if ( ! is_array( $meta ) ) {
-                    continue;
-                }
-                if ( isset( $meta['key'] ) && $meta['key'] === '_trp_convert_linebreaks' ) {
-                    return ! empty( $meta['value'] ) && $meta['value'] === '1';
-                }
-            }
-        } catch ( \Throwable $e ) {
-            $this->log( 'Error checking linebreak conversion: ' . $e->getMessage() );
-        }
-        return false;
-    }
-
-    /**
      * Convert line breaks to <br> tags before WordPress saves the post
      * This prevents wpautop() from creating multiple <p> tags
-     * ONLY activated when _trp_convert_linebreaks custom field is set to "1"
+     * Always runs during import to normalize paragraph breaks
      * 
      * @param array $article_data Post data being imported
      * @param object $import Import object
      * @param int $post_id Post ID (0 for new posts)
      * @param int $current_position Current import position
-     * @param array $xml_node Current record data
      * @return array Modified article data
      */
     public function convert_linebreaks_before_save( $article_data, $import, $post_id, $current_position ) {
         try {
-            // Safety check
             if ( ! is_array( $article_data ) ) {
-                return $article_data;
-            }
-            
-            // Only convert if _trp_convert_linebreaks is set to "1"
-            if ( ! $this->is_linebreak_conversion_enabled( $article_data ) ) {
                 return $article_data;
             }
             
@@ -276,18 +237,6 @@ class WPAI_TranslatePress_Sync {
     }
 
     /**
-     * Split text into paragraphs by double line breaks
-     * Returns array of trimmed, non-empty paragraphs
-     * 
-     * @param string $text Text to split
-     * @return array Array of paragraph strings
-     */
-    private function split_paragraphs( $text ) {
-        $paragraphs = preg_split( '/\n\s*\n/', trim( $text ) );
-        return array_values( array_filter( array_map( 'trim', $paragraphs ) ) );
-    }
-
-    /**
      * Convert double line breaks to <br><br> and single to <br>
      * Preserves visual paragraph spacing without creating multiple <p> tags
      * 
@@ -381,13 +330,6 @@ class WPAI_TranslatePress_Sync {
                         continue;
                     }
 
-                    // Convert line breaks in translation to match the original format
-                    // Only if _trp_convert_linebreaks is enabled
-                    $convert_enabled = isset( $all_meta['_trp_convert_linebreaks'] ) && $all_meta['_trp_convert_linebreaks'][0] === '1';
-                    if ( $convert_enabled ) {
-                        $translated_value = $this->convert_linebreaks( $translated_value );
-                    }
-
                     // Get original value from post
                     $original_value = isset( $post->$post_field ) ? $post->$post_field : '';
                     
@@ -395,38 +337,28 @@ class WPAI_TranslatePress_Sync {
                         continue;
                     }
 
-                    // Split into paragraphs for multi-paragraph content
-                    // TranslatePress detects each <p> block as a separate translatable string
-                    $original_paragraphs = $this->split_paragraphs( $original_value );
-                    $translated_paragraphs = $this->split_paragraphs( $translated_value );
+                    // Normalize paragraph breaks: convert \n\n to <br><br> in both original and translation
+                    // This prevents wpautop() from creating separate <p> tags, so TranslatePress
+                    // always detects the description as ONE string = ONE dictionary entry
+                    $original_normalized = $this->convert_linebreaks( $original_value );
+                    $translated_value = $this->convert_linebreaks( $translated_value );
 
-                    if ( count( $original_paragraphs ) > 1 && count( $original_paragraphs ) === count( $translated_paragraphs ) ) {
-                        // Multi-paragraph: insert each paragraph pair individually
-                        $this->log( sprintf( 'Splitting into %d paragraphs for post #%d', count( $original_paragraphs ), $post_id ) );
-                        $para_success = 0;
-                        foreach ( $original_paragraphs as $i => $orig_para ) {
-                            $result = $this->force_insert_translation( $orig_para, $translated_paragraphs[ $i ], $lang_code );
-                            if ( ! is_wp_error( $result ) && isset( $result['success'] ) && $result['success'] ) {
-                                $para_success++;
-                            }
-                        }
-                        if ( $para_success > 0 ) {
-                            $translations_added++;
-                        }
-                    } else {
-                        // Single paragraph or paragraph count mismatch: insert as full block
-                        if ( count( $original_paragraphs ) > 1 && count( $original_paragraphs ) !== count( $translated_paragraphs ) ) {
-                            $this->log( sprintf(
-                                'WARNING: Paragraph count mismatch for post #%d - original has %d, translated has %d. Add matching paragraph breaks in your spreadsheet.',
-                                $post_id, count( $original_paragraphs ), count( $translated_paragraphs )
-                            ) );
-                        }
-                        $result = $this->force_insert_translation( $original_value, $translated_value, $lang_code );
-                        if ( ! is_wp_error( $result ) && isset( $result['success'] ) && $result['success'] ) {
-                            $translations_added++;
-                        } elseif ( is_wp_error( $result ) ) {
-                            $this->log( sprintf( 'API Error for post #%d, field %s: %s', $post_id, $meta_key, $result->get_error_message() ) );
-                        }
+                    // If the original had paragraph breaks, update post_content in DB
+                    if ( $original_normalized !== $original_value && $post_field === 'post_content' ) {
+                        wp_update_post( array(
+                            'ID'           => $post_id,
+                            'post_content' => $original_normalized,
+                        ) );
+                        $this->log( sprintf( 'Normalized paragraph breaks in post_content for post #%d', $post_id ) );
+                    }
+
+                    // Force update translation (delete existing first)
+                    $result = $this->force_insert_translation( $original_normalized, $translated_value, $lang_code );
+
+                    if ( ! is_wp_error( $result ) && isset( $result['success'] ) && $result['success'] ) {
+                        $translations_added++;
+                    } elseif ( is_wp_error( $result ) ) {
+                        $this->log( sprintf( 'API Error for post #%d, field %s: %s', $post_id, $meta_key, $result->get_error_message() ) );
                     }
 
                     // Clean up temporary meta field
@@ -439,7 +371,7 @@ class WPAI_TranslatePress_Sync {
                 $this->log( sprintf( 'Added %d translations for post #%d', $translations_added, $post_id ) );
             }
 
-            // Clean up the convert flag
+            // Clean up legacy convert flag if present (no longer required)
             delete_post_meta( $post_id, '_trp_convert_linebreaks' );
 
             // Sync category translations (WooCommerce products)
