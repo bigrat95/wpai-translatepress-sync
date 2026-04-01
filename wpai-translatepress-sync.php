@@ -815,11 +815,11 @@ class WPAI_TranslatePress_Sync {
             echo '<div class="notice notice-error"><p><strong>TranslatePress Import Sync:</strong> TranslatePress Custom API is required. <a href="' . esc_url( admin_url( 'plugins.php' ) ) . '">Manage Plugins</a></p></div>';
             return;
         }
-        $url = admin_url( 'tools.php?page=wpai-trp-sync' );
+        $url = admin_url( 'options-general.php?page=wpai-trp-sync' );
         echo '<div class="notice notice-info is-dismissible"><p><strong>TranslatePress Import Sync</strong> is active. <a href="' . esc_url( $url ) . '">View field reference &amp; logs &rarr;</a></p></div>';
     }
 
-    /* ── Legacy notice HTML removed in v3.11.0 — all field reference moved to Tools → TRP Import Sync ──
+    /* ── Legacy notice HTML removed in v3.11.0 — all field reference moved to Settings → TP Import Sync ──
      * The inline notice below is no longer rendered (function returns above).
      */
     private function _legacy_notice_unused() {
@@ -910,12 +910,12 @@ class WPAI_TranslatePress_Sync {
         <?php
     }
     /**
-     * Register admin menu page under Tools
+     * Register admin menu page under Settings
      */
     public function add_admin_menu() {
-        add_management_page(
-            'TranslatePress Import Sync',
-            'TRP Import Sync',
+        add_options_page(
+            'TP Import Sync',
+            'TP Import Sync',
             'manage_options',
             'wpai-trp-sync',
             array( $this, 'render_admin_page' )
@@ -937,7 +937,7 @@ class WPAI_TranslatePress_Sync {
             if ( file_exists( $this->log_file ) ) {
                 @unlink( $this->log_file );
             }
-            wp_redirect( admin_url( 'tools.php?page=wpai-trp-sync&tab=logs&cleared=1' ) );
+            wp_redirect( admin_url( 'options-general.php?page=wpai-trp-sync&tab=logs&cleared=1' ) );
             exit;
         }
     }
@@ -951,7 +951,7 @@ class WPAI_TranslatePress_Sync {
         $first_lang = ! empty( $languages ) ? $languages[0] : 'fr_CA';
         ?>
         <div class="wrap">
-            <h1>TranslatePress Import Sync <small style="font-weight:normal;color:#999;">v3.11.0</small></h1>
+            <h1>TP Import Sync <small style="font-weight:normal;color:#999;">v3.11.0</small></h1>
             <nav class="nav-tab-wrapper">
                 <a href="?page=wpai-trp-sync&tab=dashboard" class="nav-tab <?php echo $active_tab === 'dashboard' ? 'nav-tab-active' : ''; ?>">Dashboard</a>
                 <a href="?page=wpai-trp-sync&tab=fields" class="nav-tab <?php echo $active_tab === 'fields' ? 'nav-tab-active' : ''; ?>">Field Reference</a>
