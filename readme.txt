@@ -4,7 +4,7 @@ Tags: translatepress, wp all import, translation, multilingual, woocommerce
 Requires at least: 5.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 3.11.0
+Stable tag: 3.12.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -92,8 +92,15 @@ Yes, TranslatePress SEO Pack addon is required for slug translations. Category n
 
 == Changelog ==
 
+= 3.12.0 =
+* FIX: Per-paragraph translation matching — inserts one TranslatePress dictionary entry per paragraph
+* Removed content flattening (was causing mismatch between DB content and what TranslatePress detects)
+* Added split_into_paragraphs helper that handles <p> tags, <br><br>, and double newlines
+* Variation descriptions also use per-paragraph matching
+* Fixes French translations not appearing for multi-paragraph product descriptions
+
 = 3.11.0 =
-* NEW: Full plugin dashboard under Tools → TRP Import Sync
+* NEW: Full plugin dashboard under Settings → TP Import Sync
 * Tabbed interface: Dashboard (system status), Field Reference (auto-detected fields with copy buttons), Logs
 * Auto-detects TranslatePress languages, WooCommerce attributes, and all available translation fields
 * Copy-to-clipboard button on every field name for easy WP All Import mapping
@@ -203,8 +210,11 @@ Yes, TranslatePress SEO Pack addon is required for slug translations. Category n
 
 == Upgrade Notice ==
 
+= 3.12.0 =
+Critical fix: per-paragraph translation matching. Fixes French translations not appearing for multi-paragraph descriptions.
+
 = 3.11.0 =
-Full plugin dashboard with tabbed UI: Dashboard, Field Reference (with copy buttons), and Logs.
+Full plugin dashboard with tabbed UI.
 
 = 3.10.0 =
 Admin log viewer under Tools.
