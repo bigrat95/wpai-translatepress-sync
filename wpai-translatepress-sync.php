@@ -3,7 +3,7 @@
  * Plugin Name: TranslatePress Import Sync
  * Plugin URI: https://github.com/bigrat95/wpai-translatepress-sync
  * Description: Automatically sync translations from WP All Import to TranslatePress using the official Custom API. Map _trp_title_[lang] and _trp_content_[lang] custom fields in your import.
- * Version: 3.8.1
+ * Version: 3.9.0
  * Author: Olivier Bigras
  * Author URI: https://olivierbigras.com
  * License: GPL v2 or later
@@ -86,6 +86,9 @@ class WPAI_TranslatePress_Sync {
         // Hook into WP All Import after post is saved
         add_action( 'pmxi_saved_post', array( $this, 'sync_translations' ), 10, 3 );
         
+        // Safety net: normalize content AFTER entire import record is done
+        add_action( 'pmxi_after_post_import', array( $this, 'normalize_content_after_import' ), 10, 1 );
+        
         // Admin notice for configuration help
         add_action( 'admin_notices', array( $this, 'admin_notice' ) );
     }
@@ -107,8 +110,16 @@ class WPAI_TranslatePress_Sync {
                 return $article_data;
             }
             
+            $title = isset( $article_data['post_title'] ) ? $article_data['post_title'] : '(unknown)';
+            
             if ( ! empty( $article_data['post_content'] ) && is_string( $article_data['post_content'] ) ) {
+                $before = $article_data['post_content'];
                 $article_data['post_content'] = $this->convert_linebreaks( $article_data['post_content'] );
+                if ( $before !== $article_data['post_content'] ) {
+                    $this->log( sprintf( 'convert_linebreaks_before_save: Normalized post_content for "%s" (post #%d)', $title, $post_id ) );
+                }
+            } else {
+                $this->log( sprintf( 'convert_linebreaks_before_save: post_content is EMPTY for "%s" (post #%d) - content not in import data', $title, $post_id ) );
             }
             
             if ( ! empty( $article_data['post_excerpt'] ) && is_string( $article_data['post_excerpt'] ) ) {
@@ -388,13 +399,24 @@ class WPAI_TranslatePress_Sync {
                     $original_normalized = $this->convert_linebreaks( $original_value );
                     $translated_value = $this->convert_linebreaks( $translated_value );
 
-                    // If the original had paragraph breaks, update the post field in DB
+                    // If the original had paragraph breaks, update the post field directly in DB
+                    // Using $wpdb->update instead of wp_update_post to bypass WooCommerce hooks
+                    // that can revert our normalized content back to the original
                     if ( $original_normalized !== $original_value && in_array( $post_field, array( 'post_content', 'post_excerpt' ), true ) ) {
-                        wp_update_post( array(
-                            'ID'        => $post_id,
-                            $post_field => $original_normalized,
-                        ) );
-                        $this->log( sprintf( 'Normalized paragraph breaks in %s for post #%d', $post_field, $post_id ) );
+                        global $wpdb;
+                        $updated = $wpdb->update(
+                            $wpdb->posts,
+                            array( $post_field => $original_normalized ),
+                            array( 'ID' => $post_id ),
+                            array( '%s' ),
+                            array( '%d' )
+                        );
+                        if ( $updated !== false ) {
+                            clean_post_cache( $post_id );
+                            $this->log( sprintf( 'Normalized %s for post #%d via direct DB update (%d chars before → %d chars after)', $post_field, $post_id, strlen( $original_value ), strlen( $original_normalized ) ) );
+                        } else {
+                            $this->log( sprintf( 'FAILED to normalize %s for post #%d: %s', $post_field, $post_id, $wpdb->last_error ) );
+                        }
                     }
 
                     // Force update translation (delete existing first)
@@ -430,6 +452,48 @@ class WPAI_TranslatePress_Sync {
 
         } catch ( Exception $e ) {
             $this->log( 'Error in sync_translations for post #' . $post_id . ': ' . $e->getMessage() );
+        }
+    }
+
+    /**
+     * Safety net: normalize post_content and post_excerpt AFTER entire import record is done
+     * This runs on pmxi_after_post_import, which fires after pmxi_saved_post and all
+     * WooCommerce/ACF processing. If content still has paragraph breaks at this point,
+     * we force-normalize it via direct DB update.
+     * 
+     * @param int $post_id Post ID
+     */
+    public function normalize_content_after_import( $post_id ) {
+        global $wpdb;
+        
+        $post = get_post( $post_id );
+        if ( ! $post ) {
+            return;
+        }
+        
+        $fields_to_check = array( 'post_content', 'post_excerpt' );
+        
+        foreach ( $fields_to_check as $field ) {
+            $value = $post->$field;
+            if ( empty( $value ) ) {
+                continue;
+            }
+            
+            $normalized = $this->convert_linebreaks( $value );
+            
+            if ( $normalized !== $value ) {
+                $updated = $wpdb->update(
+                    $wpdb->posts,
+                    array( $field => $normalized ),
+                    array( 'ID' => $post_id ),
+                    array( '%s' ),
+                    array( '%d' )
+                );
+                if ( $updated !== false ) {
+                    clean_post_cache( $post_id );
+                    $this->log( sprintf( 'SAFETY NET: Normalized %s for post #%d "%s" (still had paragraph breaks after import)', $field, $post_id, $post->post_title ) );
+                }
+            }
         }
     }
 
@@ -745,7 +809,7 @@ class WPAI_TranslatePress_Sync {
         $first_lang = ! empty( $languages ) ? $languages[0] : 'fr_CA';
         ?>
         <div class="notice notice-info is-dismissible" id="wpai-trp-notice">
-            <p><strong>📝 TranslatePress Sync Active v3.8.1</strong> (Force Update Mode)</p>
+            <p><strong>📝 TranslatePress Sync Active v3.9.0</strong> (Force Update Mode)</p>
             
             <p><strong>📄 Post/Product Fields:</strong></p>
             <ul style="list-style: disc; margin-left: 20px;">

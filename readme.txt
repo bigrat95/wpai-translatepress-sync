@@ -4,7 +4,7 @@ Tags: translatepress, wp all import, translation, multilingual, woocommerce
 Requires at least: 5.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 3.8.1
+Stable tag: 3.9.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -91,6 +91,13 @@ Yes, TranslatePress SEO Pack addon is required for slug translations. Category n
 3. Translations synced in TranslatePress
 
 == Changelog ==
+
+= 3.9.0 =
+* FIX: Content normalization now persists in database (uses direct DB update instead of wp_update_post)
+* WooCommerce hooks were reverting normalized content back to original with paragraph breaks
+* Added safety-net normalization on `pmxi_after_post_import` hook (runs after all WooCommerce processing)
+* Added detailed logging to track normalization flow
+* Fixes mixed English/French display caused by TranslatePress detecting individual paragraphs
 
 = 3.8.1 =
 * FIX: Variation description translations now always normalized (removed old `_trp_convert_linebreaks` check)
@@ -184,6 +191,9 @@ Yes, TranslatePress SEO Pack addon is required for slug translations. Category n
 * Initial release
 
 == Upgrade Notice ==
+
+= 3.9.0 =
+Critical fix: content normalization now persists. Bypasses WooCommerce hooks that reverted changes. Adds safety-net normalization.
 
 = 3.8.1 =
 Fixes remaining old references. Variation descriptions and excerpts now fully normalized.
