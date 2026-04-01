@@ -3,7 +3,7 @@
  * Plugin Name: TranslatePress Import Sync
  * Plugin URI: https://github.com/bigrat95/wpai-translatepress-sync
  * Description: Automatically sync translations from WP All Import to TranslatePress using the official Custom API. Map _trp_title_[lang] and _trp_content_[lang] custom fields in your import.
- * Version: 3.9.0
+ * Version: 3.10.0
  * Author: Olivier Bigras
  * Author URI: https://olivierbigras.com
  * License: GPL v2 or later
@@ -77,9 +77,16 @@ class WPAI_TranslatePress_Sync {
     private $variation_desc_prefix = '_trp_variation_desc_';
 
     /**
+     * Path to the plugin's own log file
+     */
+    private $log_file;
+
+    /**
      * Constructor
      */
     public function __construct() {
+        $this->log_file = plugin_dir_path( __FILE__ ) . 'sync-log.txt';
+
         // Hook into WP All Import BEFORE post is saved to convert line breaks
         add_filter( 'pmxi_article_data', array( $this, 'convert_linebreaks_before_save' ), 10, 4 );
         
@@ -91,6 +98,11 @@ class WPAI_TranslatePress_Sync {
         
         // Admin notice for configuration help
         add_action( 'admin_notices', array( $this, 'admin_notice' ) );
+
+        // Settings page
+        add_action( 'admin_menu', array( $this, 'add_admin_menu' ) );
+        add_action( 'admin_init', array( $this, 'register_settings' ) );
+        add_action( 'admin_init', array( $this, 'handle_clear_log' ) );
     }
 
     /**
@@ -133,12 +145,19 @@ class WPAI_TranslatePress_Sync {
     }
 
     /**
-     * Log messages for debugging
+     * Log messages for debugging.
+     * Writes to the plugin's own log file when logging is enabled.
      */
     private function log( $message ) {
+        if ( ! get_option( 'wpai_trp_logging_enabled', 0 ) ) {
+            return;
+        }
+        $line = '[' . current_time( 'Y-m-d H:i:s' ) . '] ' . $message . "\n";
+        // Also write to debug.log if WP_DEBUG is on
         if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
             error_log( '[WPAI-TRP-Sync] ' . $message );
         }
+        @file_put_contents( $this->log_file, $line, FILE_APPEND | LOCK_EX );
     }
 
     /**
@@ -809,7 +828,7 @@ class WPAI_TranslatePress_Sync {
         $first_lang = ! empty( $languages ) ? $languages[0] : 'fr_CA';
         ?>
         <div class="notice notice-info is-dismissible" id="wpai-trp-notice">
-            <p><strong>📝 TranslatePress Sync Active v3.9.0</strong> (Force Update Mode)</p>
+            <p><strong>📝 TranslatePress Sync Active v3.10.0</strong> (Force Update Mode)</p>
             
             <p><strong>📄 Post/Product Fields:</strong></p>
             <ul style="list-style: disc; margin-left: 20px;">
@@ -886,6 +905,97 @@ class WPAI_TranslatePress_Sync {
             
             <p style="margin-top: 10px;"><strong>🔒 Auto-Translation Protection:</strong> All imported translations are saved with <strong>status 2 (Human Reviewed)</strong>.</p>
             <p><small>Configured languages: <?php echo esc_html( implode( ', ', $languages ) ); ?></small></p>
+        </div>
+        <?php
+    }
+    /**
+     * Register admin menu page under Tools
+     */
+    public function add_admin_menu() {
+        add_management_page(
+            'TranslatePress Sync',
+            'TRP Sync Logs',
+            'manage_options',
+            'wpai-trp-sync',
+            array( $this, 'render_settings_page' )
+        );
+    }
+
+    /**
+     * Register settings
+     */
+    public function register_settings() {
+        register_setting( 'wpai_trp_settings', 'wpai_trp_logging_enabled' );
+    }
+
+    /**
+     * Handle clear log action
+     */
+    public function handle_clear_log() {
+        if ( isset( $_POST['wpai_trp_clear_log'] ) && check_admin_referer( 'wpai_trp_clear_log_nonce' ) ) {
+            if ( file_exists( $this->log_file ) ) {
+                @unlink( $this->log_file );
+            }
+            wp_redirect( admin_url( 'tools.php?page=wpai-trp-sync&cleared=1' ) );
+            exit;
+        }
+    }
+
+    /**
+     * Render the settings / log viewer page
+     */
+    public function render_settings_page() {
+        $logging_enabled = get_option( 'wpai_trp_logging_enabled', 0 );
+        $log_content     = '';
+        if ( file_exists( $this->log_file ) ) {
+            $log_content = file_get_contents( $this->log_file );
+        }
+        $log_size = file_exists( $this->log_file ) ? size_format( filesize( $this->log_file ) ) : '0 B';
+        ?>
+        <div class="wrap">
+            <h1>TranslatePress Sync — Logs & Settings</h1>
+
+            <?php if ( isset( $_GET['cleared'] ) ) : ?>
+                <div class="notice notice-success is-dismissible"><p>Log cleared.</p></div>
+            <?php endif; ?>
+            <?php if ( isset( $_GET['settings-updated'] ) ) : ?>
+                <div class="notice notice-success is-dismissible"><p>Settings saved.</p></div>
+            <?php endif; ?>
+
+            <!-- Settings -->
+            <form method="post" action="options.php">
+                <?php settings_fields( 'wpai_trp_settings' ); ?>
+                <table class="form-table">
+                    <tr>
+                        <th scope="row">Enable Logging</th>
+                        <td>
+                            <label>
+                                <input type="checkbox" name="wpai_trp_logging_enabled" value="1" <?php checked( $logging_enabled, 1 ); ?> />
+                                Write detailed import logs (visible below)
+                            </label>
+                            <p class="description">Turn this on before running an import, then check the log below. Turn off when not debugging to save disk space.</p>
+                        </td>
+                    </tr>
+                </table>
+                <?php submit_button( 'Save Settings' ); ?>
+            </form>
+
+            <hr />
+
+            <!-- Log viewer -->
+            <h2>Import Log <small style="font-weight:normal;color:#666;">(<?php echo esc_html( $log_size ); ?>)</small></h2>
+
+            <?php if ( ! empty( $log_content ) ) : ?>
+                <form method="post" style="margin-bottom:10px;">
+                    <?php wp_nonce_field( 'wpai_trp_clear_log_nonce' ); ?>
+                    <button type="submit" name="wpai_trp_clear_log" class="button button-secondary" onclick="return confirm('Clear the entire log?');">
+                        🗑️ Clear Log
+                    </button>
+                </form>
+                <textarea readonly style="width:100%;height:500px;font-family:monospace;font-size:12px;background:#1e1e1e;color:#d4d4d4;padding:12px;border-radius:4px;"><?php echo esc_textarea( $log_content ); ?></textarea>
+            <?php else : ?>
+                <p style="color:#666;">No log entries yet. Enable logging above and run an import.</p>
+            <?php endif; ?>
         </div>
         <?php
     }
