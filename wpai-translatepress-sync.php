@@ -3,7 +3,7 @@
  * Plugin Name: TranslatePress Import Sync
  * Plugin URI: https://github.com/bigrat95/wpai-translatepress-sync
  * Description: Automatically sync translations from WP All Import to TranslatePress using the official Custom API. Map _trp_title_[lang] and _trp_content_[lang] custom fields in your import.
- * Version: 3.8.0
+ * Version: 3.8.1
  * Author: Olivier Bigras
  * Author URI: https://olivierbigras.com
  * License: GPL v2 or later
@@ -18,7 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 /**
  * =============================================================================
- * WP ALL IMPORT + TRANSLATEPRESS SYNC PLUGIN (v2 - Using Official API)
+ * WP ALL IMPORT + TRANSLATEPRESS SYNC PLUGIN (v3 - Using Official API)
  * =============================================================================
  * 
  * REQUIRES: TranslatePress Custom API plugin
@@ -388,13 +388,13 @@ class WPAI_TranslatePress_Sync {
                     $original_normalized = $this->convert_linebreaks( $original_value );
                     $translated_value = $this->convert_linebreaks( $translated_value );
 
-                    // If the original had paragraph breaks, update post_content in DB
-                    if ( $original_normalized !== $original_value && $post_field === 'post_content' ) {
+                    // If the original had paragraph breaks, update the post field in DB
+                    if ( $original_normalized !== $original_value && in_array( $post_field, array( 'post_content', 'post_excerpt' ), true ) ) {
                         wp_update_post( array(
-                            'ID'           => $post_id,
-                            'post_content' => $original_normalized,
+                            'ID'        => $post_id,
+                            $post_field => $original_normalized,
                         ) );
-                        $this->log( sprintf( 'Normalized paragraph breaks in post_content for post #%d', $post_id ) );
+                        $this->log( sprintf( 'Normalized paragraph breaks in %s for post #%d', $post_field, $post_id ) );
                     }
 
                     // Force update translation (delete existing first)
@@ -692,15 +692,13 @@ class WPAI_TranslatePress_Sync {
 
             $translated_desc = $all_meta[ $meta_key ][0];
 
-            // Convert line breaks if enabled
-            $convert_enabled = isset( $all_meta['_trp_convert_linebreaks'] ) && $all_meta['_trp_convert_linebreaks'][0] === '1';
-            if ( $convert_enabled ) {
-                $translated_desc = $this->convert_linebreaks( $translated_desc );
-            }
+            // Normalize both original and translated to single block
+            $original_desc_normalized = $this->convert_linebreaks( $original_desc );
+            $translated_desc = $this->convert_linebreaks( $translated_desc );
 
             // Force update translation
             $result = $this->force_insert_translation(
-                $original_desc,
+                $original_desc_normalized,
                 $translated_desc,
                 $lang_code
             );
@@ -747,7 +745,7 @@ class WPAI_TranslatePress_Sync {
         $first_lang = ! empty( $languages ) ? $languages[0] : 'fr_CA';
         ?>
         <div class="notice notice-info is-dismissible" id="wpai-trp-notice">
-            <p><strong>📝 TranslatePress Sync Active v3.8.0</strong> (Force Update Mode)</p>
+            <p><strong>📝 TranslatePress Sync Active v3.8.1</strong> (Force Update Mode)</p>
             
             <p><strong>📄 Post/Product Fields:</strong></p>
             <ul style="list-style: disc; margin-left: 20px;">

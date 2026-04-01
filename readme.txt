@@ -4,7 +4,7 @@ Tags: translatepress, wp all import, translation, multilingual, woocommerce
 Requires at least: 5.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 3.8.0
+Stable tag: 3.8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -92,6 +92,12 @@ Yes, TranslatePress SEO Pack addon is required for slug translations. Category n
 
 == Changelog ==
 
+= 3.8.1 =
+* FIX: Variation description translations now always normalized (removed old `_trp_convert_linebreaks` check)
+* FIX: Original variation description is also normalized before dictionary insertion
+* FIX: post_excerpt normalization now also updates the DB (not just post_content)
+* Updated header comment version
+
 = 3.8.0 =
 * Bulletproof content flattening: handles ALL content formats, never skips
 * Strips `<p>`, `</p>`, `<div>`, `</div>` tags and replaces with `<br><br>`
@@ -178,6 +184,9 @@ Yes, TranslatePress SEO Pack addon is required for slug translations. Category n
 * Initial release
 
 == Upgrade Notice ==
+
+= 3.8.1 =
+Fixes remaining old references. Variation descriptions and excerpts now fully normalized.
 
 = 3.8.0 =
 Bulletproof content flattening. Handles <p> tags, <div> wrappers, Gutenberg blocks, and all mixed formats.
