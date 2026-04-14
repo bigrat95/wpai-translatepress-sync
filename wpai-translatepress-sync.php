@@ -17,7 +17,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 define( 'OLI_IMPORT_SYNC_TRP_VERSION', '3.14.0' );
-define( 'OLI_IMPORT_SYNC_TRP_TEXTDOMAIN', 'oli-import-sync-for-translatepress' );
 
 /**
  * =============================================================================
@@ -119,7 +118,7 @@ class WPAI_TranslatePress_Sync {
      */
     public function load_textdomain() {
         load_plugin_textdomain(
-            OLI_IMPORT_SYNC_TRP_TEXTDOMAIN,
+            'oli-import-sync-for-translatepress',
             false,
             dirname( plugin_basename( __FILE__ ) ) . '/languages'
         );
@@ -829,15 +828,15 @@ class WPAI_TranslatePress_Sync {
             return;
         }
         if ( ! function_exists( 'trpc_insert_translation' ) ) {
-            echo '<div class="notice notice-error"><p><strong>' . esc_html__( 'Oli Import Sync for TranslatePress', OLI_IMPORT_SYNC_TRP_TEXTDOMAIN ) . ':</strong> ';
-            echo esc_html__( 'TranslatePress Custom API is required.', OLI_IMPORT_SYNC_TRP_TEXTDOMAIN );
-            echo ' <a href="' . esc_url( admin_url( 'plugins.php' ) ) . '">' . esc_html__( 'Manage Plugins', OLI_IMPORT_SYNC_TRP_TEXTDOMAIN ) . '</a></p></div>';
+            echo '<div class="notice notice-error"><p><strong>' . esc_html__( 'Oli Import Sync for TranslatePress', 'oli-import-sync-for-translatepress' ) . ':</strong> ';
+            echo esc_html__( 'TranslatePress Custom API is required.', 'oli-import-sync-for-translatepress' );
+            echo ' <a href="' . esc_url( admin_url( 'plugins.php' ) ) . '">' . esc_html__( 'Manage Plugins', 'oli-import-sync-for-translatepress' ) . '</a></p></div>';
             return;
         }
         $url = admin_url( 'options-general.php?page=wpai-trp-sync' );
-        echo '<div class="notice notice-info is-dismissible"><p><strong>' . esc_html__( 'Oli Import Sync for TranslatePress', OLI_IMPORT_SYNC_TRP_TEXTDOMAIN ) . '</strong> ';
-        echo esc_html__( 'is active.', OLI_IMPORT_SYNC_TRP_TEXTDOMAIN );
-        echo ' <a href="' . esc_url( $url ) . '">' . esc_html__( 'View field reference & logs →', OLI_IMPORT_SYNC_TRP_TEXTDOMAIN ) . '</a></p></div>';
+        echo '<div class="notice notice-info is-dismissible"><p><strong>' . esc_html__( 'Oli Import Sync for TranslatePress', 'oli-import-sync-for-translatepress' ) . '</strong> ';
+        echo esc_html__( 'is active.', 'oli-import-sync-for-translatepress' );
+        echo ' <a href="' . esc_url( $url ) . '">' . esc_html__( 'View field reference & logs →', 'oli-import-sync-for-translatepress' ) . '</a></p></div>';
     }
 
     /**
@@ -845,8 +844,8 @@ class WPAI_TranslatePress_Sync {
      */
     public function add_admin_menu() {
         add_options_page(
-            __( 'Oli Import Sync for TranslatePress', OLI_IMPORT_SYNC_TRP_TEXTDOMAIN ),
-            __( 'Oli Import Sync', OLI_IMPORT_SYNC_TRP_TEXTDOMAIN ),
+            __( 'Oli Import Sync for TranslatePress', 'oli-import-sync-for-translatepress' ),
+            __( 'Oli Import Sync', 'oli-import-sync-for-translatepress' ),
             'manage_options',
             'wpai-trp-sync',
             array( $this, 'render_admin_page' )
@@ -886,7 +885,7 @@ class WPAI_TranslatePress_Sync {
         $first_lang = ! empty( $languages ) ? $languages[0] : 'fr_CA';
         ?>
         <div class="wrap">
-            <h1><?php echo esc_html__( 'Oli Import Sync for TranslatePress', OLI_IMPORT_SYNC_TRP_TEXTDOMAIN ); ?> <small style="font-weight:normal;color:#999;">v<?php echo esc_html( OLI_IMPORT_SYNC_TRP_VERSION ); ?></small></h1>
+            <h1><?php echo esc_html__( 'Oli Import Sync for TranslatePress', 'oli-import-sync-for-translatepress' ); ?> <small style="font-weight:normal;color:#999;">v<?php echo esc_html( OLI_IMPORT_SYNC_TRP_VERSION ); ?></small></h1>
             <nav class="nav-tab-wrapper">
                 <a href="?page=wpai-trp-sync&tab=dashboard" class="nav-tab <?php echo $active_tab === 'dashboard' ? 'nav-tab-active' : ''; ?>">Dashboard</a>
                 <a href="?page=wpai-trp-sync&tab=fields" class="nav-tab <?php echo $active_tab === 'fields' ? 'nav-tab-active' : ''; ?>">Field Reference</a>
