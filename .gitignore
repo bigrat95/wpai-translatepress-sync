@@ -1,12 +1,5 @@
-# OS files
-.DS_Store
-Thumbs.db
-
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-
-# WordPress
-wp-config.php
+# WordPress.org: directory assets (icons, banners) must be uploaded via SVN after approval — not bundled in the plugin zip.
+assets/icon-*.png
+assets/banner-*.png
+assets/*.jpg
+screenshot-*.png

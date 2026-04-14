@@ -1,18 +1,17 @@
-=== TranslatePress Import Sync ===
-Contributors: olivierbigras
-Tags: translatepress, wp all import, translation, multilingual, woocommerce
+=== Oli Import Sync for TranslatePress ===
+Tags: translatepress, wp all import, translation, multilingual, woocommerce, import
 Requires at least: 5.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 3.13.0
+Stable tag: 3.14.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Automatically sync translations from WP All Import to TranslatePress using the official Custom API.
+Sync translations from WP All Import into TranslatePress using the official Custom API. Independent plugin — not affiliated with TranslatePress.
 
 == Description ==
 
-**TranslatePress Import Sync** enables you to import multilingual content directly into TranslatePress when using WP All Import. Perfect for bulk importing products, posts, or any content with translations.
+**Oli Import Sync for TranslatePress** enables you to import multilingual content into TranslatePress when using WP All Import. Ideal for bulk importing products, posts, or any content with translations.
 
 = Features =
 
@@ -84,13 +83,14 @@ Use pipe-separated values. Example: `_trp_cat_fr_CA` = "Chaises|Tables|Bureaux"
 
 Yes, TranslatePress SEO Pack addon is required for slug translations. Category name translations work without it.
 
-== Screenshots ==
-
-1. Admin notice showing available custom fields
-2. WP All Import custom field mapping
-3. Translations synced in TranslatePress
-
 == Changelog ==
+
+= 3.14.0 =
+* Rename plugin to "Oli Import Sync for TranslatePress" (trademark-friendly; not affiliated with TranslatePress)
+* Text domain: oli-import-sync-for-translatepress (match your reserved WordPress.org slug when assigned)
+* Admin: enqueue CSS/JS via wp_enqueue_style / wp_enqueue_script + inline (no raw style/script tags)
+* Readme: removed screenshot placeholders (upload assets via SVN after approval)
+* Description clarifies third-party integration
 
 = 3.13.0 =
 * FIX: Strip ALL paragraph separators into a single text block (spaces only, no <br>)
@@ -106,7 +106,7 @@ Yes, TranslatePress SEO Pack addon is required for slug translations. Category n
 * Fixes French translations not appearing for multi-paragraph product descriptions
 
 = 3.11.0 =
-* NEW: Full plugin dashboard under Settings → TP Import Sync
+* NEW: Full plugin dashboard under Settings → Oli Import Sync
 * Tabbed interface: Dashboard (system status), Field Reference (auto-detected fields with copy buttons), Logs
 * Auto-detects TranslatePress languages, WooCommerce attributes, and all available translation fields
 * Copy-to-clipboard button on every field name for easy WP All Import mapping
@@ -185,8 +185,8 @@ Yes, TranslatePress SEO Pack addon is required for slug translations. Category n
 * Minor readme improvements
 
 = 2.3.1 =
-* Renamed plugin to "TranslatePress Import Sync" (WordPress.org compliance)
-* Fixed text domain to match plugin slug
+* Renamed plugin for clearer branding
+* Text domain aligned with plugin slug
 * Updated tested up to WordPress 6.9
 
 = 2.3.0 =
@@ -215,6 +215,9 @@ Yes, TranslatePress SEO Pack addon is required for slug translations. Category n
 * Initial release
 
 == Upgrade Notice ==
+
+= 3.14.0 =
+Plugin display name and text domain updated for WordPress.org guidelines. Functionality unchanged. If you ship translations (.po), regenerate for the new text domain.
 
 = 3.13.0 =
 Strip all paragraph breaks into one text block. Translation always matches regardless of paragraph count.

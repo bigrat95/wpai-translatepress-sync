@@ -1,13 +1,13 @@
 <?php
 /**
- * Plugin Name: TranslatePress Import Sync
- * Plugin URI: https://github.com/bigrat95/wpai-translatepress-sync
- * Description: Automatically sync translations from WP All Import to TranslatePress using the official Custom API. Map _trp_title_[lang] and _trp_content_[lang] custom fields in your import.
- * Version: 3.13.0
+ * Plugin Name: Oli Import Sync for TranslatePress
+ * Plugin URI: https://olivierbigras.com/
+ * Description: Sync translations from WP All Import into TranslatePress via the official Custom API. Map _trp_title_[lang] and _trp_content_[lang] custom fields in your import. Not affiliated with TranslatePress.
+ * Version: 3.14.0
  * Author: Olivier Bigras
  * Author URI: https://olivierbigras.com
  * License: GPL v2 or later
- * Text Domain: translatepress-import-sync
+ * Text Domain: oli-import-sync-for-translatepress
  * Requires at least: 5.0
  * Requires PHP: 7.4
  */
@@ -16,9 +16,12 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
+define( 'OLI_IMPORT_SYNC_TRP_VERSION', '3.14.0' );
+define( 'OLI_IMPORT_SYNC_TRP_TEXTDOMAIN', 'oli-import-sync-for-translatepress' );
+
 /**
  * =============================================================================
- * WP ALL IMPORT + TRANSLATEPRESS SYNC PLUGIN (v3.13.0 - Using Official API)
+ * WP ALL IMPORT + TRANSLATEPRESS SYNC PLUGIN (v3.14.0 - Using Official API)
  * =============================================================================
  * 
  * REQUIRES: TranslatePress Custom API plugin
@@ -107,6 +110,51 @@ class WPAI_TranslatePress_Sync {
         add_action( 'admin_menu', array( $this, 'add_admin_menu' ) );
         add_action( 'admin_init', array( $this, 'register_settings' ) );
         add_action( 'admin_init', array( $this, 'handle_clear_log' ) );
+        add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_assets' ), 10, 1 );
+        add_action( 'plugins_loaded', array( $this, 'load_textdomain' ) );
+    }
+
+    /**
+     * Load plugin text domain for translations.
+     */
+    public function load_textdomain() {
+        load_plugin_textdomain(
+            OLI_IMPORT_SYNC_TRP_TEXTDOMAIN,
+            false,
+            dirname( plugin_basename( __FILE__ ) ) . '/languages'
+        );
+    }
+
+    /**
+     * Enqueue admin CSS/JS for the plugin settings screen (WordPress.org: no raw style/script tags in templates).
+     *
+     * @param string $hook_suffix Current admin page hook.
+     */
+    public function enqueue_admin_assets( $hook_suffix ) {
+        if ( $hook_suffix !== 'settings_page_wpai-trp-sync' ) {
+            return;
+        }
+
+        $style_handle = 'oli-import-sync-trp-admin';
+        wp_register_style( $style_handle, false, array(), OLI_IMPORT_SYNC_TRP_VERSION );
+        wp_enqueue_style( $style_handle );
+
+        $inline_css = '
+            .wpai-trp-field { display:inline-flex; align-items:center; gap:4px; }
+            .wpai-trp-field code { font-size:12px; background:#f0f0f1; padding:3px 6px; border-radius:3px; }
+            .wpai-trp-copy { cursor:pointer; font-size:11px; color:#2271b1; border:none; background:none; padding:2px 6px; }
+            .wpai-trp-copy:hover { text-decoration:underline; }
+            .wpai-trp-section { margin-bottom:24px; max-width:900px; }
+            .wpai-trp-section h3 { margin-bottom:8px; }
+        ';
+        wp_add_inline_style( $style_handle, $inline_css );
+
+        $script_handle = 'oli-import-sync-trp-admin';
+        wp_register_script( $script_handle, false, array(), OLI_IMPORT_SYNC_TRP_VERSION, true );
+        wp_enqueue_script( $script_handle );
+
+        $inline_js = 'function wpaiTrpCopy(text,btn){navigator.clipboard.writeText(text).then(function(){var orig=btn.textContent;btn.textContent="Copied!";btn.style.color="#00a32a";setTimeout(function(){btn.textContent=orig;btn.style.color="";},1200);});}';
+        wp_add_inline_script( $script_handle, $inline_js );
     }
 
     /**
@@ -781,11 +829,15 @@ class WPAI_TranslatePress_Sync {
             return;
         }
         if ( ! function_exists( 'trpc_insert_translation' ) ) {
-            echo '<div class="notice notice-error"><p><strong>TranslatePress Import Sync:</strong> TranslatePress Custom API is required. <a href="' . esc_url( admin_url( 'plugins.php' ) ) . '">Manage Plugins</a></p></div>';
+            echo '<div class="notice notice-error"><p><strong>' . esc_html__( 'Oli Import Sync for TranslatePress', OLI_IMPORT_SYNC_TRP_TEXTDOMAIN ) . ':</strong> ';
+            echo esc_html__( 'TranslatePress Custom API is required.', OLI_IMPORT_SYNC_TRP_TEXTDOMAIN );
+            echo ' <a href="' . esc_url( admin_url( 'plugins.php' ) ) . '">' . esc_html__( 'Manage Plugins', OLI_IMPORT_SYNC_TRP_TEXTDOMAIN ) . '</a></p></div>';
             return;
         }
         $url = admin_url( 'options-general.php?page=wpai-trp-sync' );
-        echo '<div class="notice notice-info is-dismissible"><p><strong>TranslatePress Import Sync</strong> is active. <a href="' . esc_url( $url ) . '">View field reference &amp; logs &rarr;</a></p></div>';
+        echo '<div class="notice notice-info is-dismissible"><p><strong>' . esc_html__( 'Oli Import Sync for TranslatePress', OLI_IMPORT_SYNC_TRP_TEXTDOMAIN ) . '</strong> ';
+        echo esc_html__( 'is active.', OLI_IMPORT_SYNC_TRP_TEXTDOMAIN );
+        echo ' <a href="' . esc_url( $url ) . '">' . esc_html__( 'View field reference & logs →', OLI_IMPORT_SYNC_TRP_TEXTDOMAIN ) . '</a></p></div>';
     }
 
     /**
@@ -793,8 +845,8 @@ class WPAI_TranslatePress_Sync {
      */
     public function add_admin_menu() {
         add_options_page(
-            'TP Import Sync',
-            'TP Import Sync',
+            __( 'Oli Import Sync for TranslatePress', OLI_IMPORT_SYNC_TRP_TEXTDOMAIN ),
+            __( 'Oli Import Sync', OLI_IMPORT_SYNC_TRP_TEXTDOMAIN ),
             'manage_options',
             'wpai-trp-sync',
             array( $this, 'render_admin_page' )
@@ -834,7 +886,7 @@ class WPAI_TranslatePress_Sync {
         $first_lang = ! empty( $languages ) ? $languages[0] : 'fr_CA';
         ?>
         <div class="wrap">
-            <h1>TP Import Sync <small style="font-weight:normal;color:#999;">v3.13.0</small></h1>
+            <h1><?php echo esc_html__( 'Oli Import Sync for TranslatePress', OLI_IMPORT_SYNC_TRP_TEXTDOMAIN ); ?> <small style="font-weight:normal;color:#999;">v<?php echo esc_html( OLI_IMPORT_SYNC_TRP_VERSION ); ?></small></h1>
             <nav class="nav-tab-wrapper">
                 <a href="?page=wpai-trp-sync&tab=dashboard" class="nav-tab <?php echo $active_tab === 'dashboard' ? 'nav-tab-active' : ''; ?>">Dashboard</a>
                 <a href="?page=wpai-trp-sync&tab=fields" class="nav-tab <?php echo $active_tab === 'fields' ? 'nav-tab-active' : ''; ?>">Field Reference</a>
@@ -856,16 +908,6 @@ class WPAI_TranslatePress_Sync {
             ?>
             </div>
         </div>
-        <script>
-        function wpaiTrpCopy(text, btn) {
-            navigator.clipboard.writeText(text).then(function() {
-                var orig = btn.textContent;
-                btn.textContent = 'Copied!';
-                btn.style.color = '#00a32a';
-                setTimeout(function() { btn.textContent = orig; btn.style.color = ''; }, 1200);
-            });
-        }
-        </script>
         <?php
     }
 
@@ -915,15 +957,6 @@ class WPAI_TranslatePress_Sync {
      */
     private function render_tab_fields( $languages ) {
         ?>
-        <style>
-            .wpai-trp-field { display:inline-flex; align-items:center; gap:4px; }
-            .wpai-trp-field code { font-size:12px; background:#f0f0f1; padding:3px 6px; border-radius:3px; }
-            .wpai-trp-copy { cursor:pointer; font-size:11px; color:#2271b1; border:none; background:none; padding:2px 6px; }
-            .wpai-trp-copy:hover { text-decoration:underline; }
-            .wpai-trp-section { margin-bottom:24px; max-width:900px; }
-            .wpai-trp-section h3 { margin-bottom:8px; }
-        </style>
-
         <div class="wpai-trp-section">
             <h3>Post / Product Fields</h3>
             <table class="widefat striped">

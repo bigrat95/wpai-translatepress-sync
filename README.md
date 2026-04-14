@@ -1,12 +1,14 @@
-# TranslatePress Import Sync
+# Oli Import Sync for TranslatePress
 
-Automatically sync translations from WP All Import to TranslatePress using the official TranslatePress Custom API.
+Sync translations from **WP All Import** into **TranslatePress** using the official TranslatePress Custom API. This plugin is **not** affiliated with or endorsed by TranslatePress.
 
 **Author:** Olivier Bigras  
 **Website:** [olivierbigras.com](https://olivierbigras.com)  
 **Email:** oli@olivierbigras.com  
-**Version:** 3.13.0  
+**Version:** 3.14.0  
 **License:** GPL v2 or later
+
+**WordPress.org:** After approval, the plugin slug may differ from your local folder name. Request your reserved slug when you reply to the Plugin Review team.
 
 ---
 
@@ -303,7 +305,7 @@ trpc_get_languages();
 
 ## Debugging
 
-The plugin has a built-in log viewer under **Settings → TP Import Sync → Logs**.
+The plugin has a built-in log viewer under **Settings → Oli Import Sync → Logs**.
 
 1. Enable logging on the Logs tab
 2. Run your import
@@ -358,6 +360,12 @@ define( 'WP_DEBUG_LOG', true );
 
 ## Changelog
 
+### 3.14.0
+- **CHANGE:** Plugin renamed to **Oli Import Sync for TranslatePress** (WordPress.org trademark guidance; not affiliated with TranslatePress)
+- **CHANGE:** Text domain `oli-import-sync-for-translatepress` (use the slug WordPress.org assigns after reservation)
+- **FIX:** Admin CSS/JS loaded with `wp_enqueue_style` / `wp_enqueue_script` and inline hooks (no raw tags in PHP output)
+- Readme: directory screenshots removed from packaging expectations
+
 ### 3.13.0
 - **FIX:** Strip ALL paragraph separators into a single text block (spaces only, no `<br>`)
 - `wpautop()` wraps in ONE `<p>` = TranslatePress detects ONE string = dictionary always matches
@@ -368,7 +376,7 @@ define( 'WP_DEBUG_LOG', true );
 - Per-paragraph translation matching (superseded by 3.13.0)
 
 ### 3.11.0
-- **NEW:** Full plugin dashboard under Settings → TP Import Sync
+- **NEW:** Full plugin dashboard under Settings → Oli Import Sync
 - Tabbed interface: Dashboard (system status), Field Reference (auto-detected fields with copy buttons), Logs
 - Auto-detects TranslatePress languages, WooCommerce attributes, and all available translation fields
 - WP All Import admin notice slimmed to a link to the dashboard
