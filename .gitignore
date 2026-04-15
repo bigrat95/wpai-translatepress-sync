@@ -1,5 +1,2 @@
-# WordPress.org: directory assets (icons, banners) must be uploaded via SVN after approval — not bundled in the plugin zip.
-assets/icon-*.png
-assets/banner-*.png
-assets/*.jpg
+# WordPress.org screenshots (not needed in repo)
 screenshot-*.png
