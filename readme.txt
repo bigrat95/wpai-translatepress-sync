@@ -1,9 +1,9 @@
-=== Oli Import Sync for TranslatePress ===
-Tags: translatepress, wp all import, translation, multilingual, woocommerce, import
+﻿=== Oli Import Sync for TranslatePress ===
+Tags: translatepress, multilingual, translation, woocommerce, wp-all-import
 Requires at least: 5.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 3.14.0
+Stable tag: 3.15.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -53,6 +53,7 @@ Sync translations from WP All Import into TranslatePress using the official Cust
 * `_trp_title_[lang]` - Translated title
 * `_trp_content_[lang]` - Translated content/description
 * `_trp_excerpt_[lang]` - Translated excerpt (optional)
+* `_trp_slug_[lang]` - Translated post/product slug (optional, requires SEO Pack). If empty and "Auto-derive post slug from translated title" is enabled, the slug is built from `_trp_title_[lang]`.
 
 **For WooCommerce categories:**
 * `_trp_cat_[lang]` - Translated category names (pipe-separated)
@@ -84,6 +85,13 @@ Use pipe-separated values. Example: `_trp_cat_fr_CA` = "Chaises|Tables|Bureaux"
 Yes, TranslatePress SEO Pack addon is required for slug translations. Category name translations work without it.
 
 == Changelog ==
+
+= 3.15.0 =
+* NEW: Translated post / product slug support via `_trp_slug_[lang]` (requires SEO Pack)
+* NEW: "Auto-derive post slug from translated title" setting (default ON) -- builds the translated slug from `_trp_title_[lang]` when no explicit slug is provided
+* Force-replace existing post slug translations on re-import (TranslatePress' INSERT IGNORE no longer blocks updates)
+* Field Reference and Dashboard updated to surface the new slug field and toggle
+* readme.txt: tags fixed (was 6 incl. "import" + space-split "wp all import"; now 5 hyphenated tags)
 
 = 3.14.0 =
 * Rename plugin to "Oli Import Sync for TranslatePress" (trademark-friendly; not affiliated with TranslatePress)
@@ -215,6 +223,9 @@ Yes, TranslatePress SEO Pack addon is required for slug translations. Category n
 * Initial release
 
 == Upgrade Notice ==
+
+= 3.15.0 =
+Adds translated post / product slug support. Auto-derive slugs from translated titles, or set them explicitly via `_trp_slug_[lang]`. Requires SEO Pack.
 
 = 3.14.0 =
 Plugin display name and text domain updated for WordPress.org guidelines. Functionality unchanged. If you ship translations (.po), regenerate for the new text domain.

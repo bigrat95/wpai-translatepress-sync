@@ -1,9 +1,9 @@
-<?php
+﻿<?php
 /**
  * Plugin Name: Oli Import Sync for TranslatePress
  * Plugin URI: https://olivierbigras.com/
  * Description: Sync translations from WP All Import into TranslatePress via the official Custom API. Map _trp_title_[lang] and _trp_content_[lang] custom fields in your import. Not affiliated with TranslatePress.
- * Version: 3.14.0
+ * Version: 3.15.0
  * Author: Olivier Bigras
  * Author URI: https://olivierbigras.com
  * License: GPL v2 or later
@@ -16,11 +16,11 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'OLI_IMPORT_SYNC_TRP_VERSION', '3.14.0' );
+define( 'OLI_IMPORT_SYNC_TRP_VERSION', '3.15.0' );
 
 /**
  * =============================================================================
- * WP ALL IMPORT + TRANSLATEPRESS SYNC PLUGIN (v3.14.0 - Using Official API)
+ * WP ALL IMPORT + TRANSLATEPRESS SYNC PLUGIN (v3.15.0 - Using Official API)
  * =============================================================================
  * 
  * REQUIRES: TranslatePress Custom API plugin
@@ -81,6 +81,12 @@ class WPAI_TranslatePress_Sync {
      * Prefix for variation description translations
      */
     private $variation_desc_prefix = '_trp_variation_desc_';
+
+    /**
+     * Prefix for translated post/product slug overrides
+     * If a value is provided here it takes priority over auto-deriving from the title.
+     */
+    private $slug_prefix = '_trp_slug_';
 
     /**
      * Path to the plugin's own log file
@@ -490,6 +496,9 @@ class WPAI_TranslatePress_Sync {
             // Sync variation description translations (WooCommerce variations)
             $this->sync_variation_description_translations( $post_id, $all_meta, $translation_languages );
 
+            // Sync post/product slug translations (uses _trp_slug_[lang] or auto-derives from translated title)
+            $this->sync_post_slug_translations( $post_id, $post, $all_meta, $translation_languages );
+
         } catch ( Exception $e ) {
             $this->log( 'Error in sync_translations for post #' . $post_id . ': ' . $e->getMessage() );
         }
@@ -818,6 +827,143 @@ class WPAI_TranslatePress_Sync {
     }
 
     /**
+     * Force insert/replace a slug translation in TranslatePress' SEO Pack tables.
+     *
+     * TranslatePress' slug query uses INSERT IGNORE, so an existing FR slug for
+     * the same default-language slug + language won't be replaced on re-import.
+     * This helper deletes the existing translation row first, then calls the
+     * official Custom API so the new translation is what ends up in the DB.
+     *
+     * @param string $original_slug   The default-language slug (post_name / term slug).
+     * @param string $translated_slug The translated slug (already sanitized).
+     * @param string $lang_code       Target language code (e.g. fr_CA).
+     * @param string $type            Slug type: 'post', 'term', 'taxonomy', 'post-type-base', 'other'.
+     * @return array|WP_Error
+     */
+    private function force_insert_slug_translation( $original_slug, $translated_slug, $lang_code, $type = 'post' ) {
+        global $wpdb;
+
+        if ( ! function_exists( 'trpc_insert_slug_translation' ) ) {
+            return new WP_Error( 'missing_seo_pack', 'TranslatePress SEO Pack required for slug translations.' );
+        }
+
+        $original_table    = $wpdb->prefix . 'trp_slug_originals';
+        $translation_table = $wpdb->prefix . 'trp_slug_translations';
+
+        // Match the normalisation used inside TRP_Slug_Query::insert_original_slugs().
+        $original_normalized = strtolower( urlencode( urldecode( $original_slug ) ) );
+
+        $original_id = $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT id FROM `{$original_table}` WHERE original = %s AND type = %s LIMIT 1",
+                $original_normalized,
+                $type
+            )
+        );
+
+        if ( $original_id ) {
+            $wpdb->delete(
+                $translation_table,
+                array(
+                    'original_id' => $original_id,
+                    'language'    => $lang_code,
+                ),
+                array( '%d', '%s' )
+            );
+        }
+
+        return trpc_insert_slug_translation(
+            $original_slug,
+            $translated_slug,
+            $lang_code,
+            array(
+                'type'   => $type,
+                'status' => 2,
+            )
+        );
+    }
+
+    /**
+     * Sync post/product slug translations.
+     *
+     * Sources, in priority order, per language:
+     *   1. Explicit _trp_slug_[lang] meta value (sanitised via sanitize_title()).
+     *   2. Auto-derived from _trp_title_[lang] (default ON, toggleable in settings).
+     *
+     * Skips product variations (no user-facing URL) and posts without a post_name.
+     *
+     * @param int     $post_id               Post ID.
+     * @param WP_Post $post                  Post object (default-language data).
+     * @param array   $all_meta              All post meta.
+     * @param array   $translation_languages Languages to translate to.
+     */
+    private function sync_post_slug_translations( $post_id, $post, $all_meta, $translation_languages ) {
+        if ( ! function_exists( 'trpc_insert_slug_translation' ) ) {
+            $this->log( 'SEO Pack required for post slug translations, skipping' );
+            return;
+        }
+
+        if ( empty( $post ) || empty( $post->post_name ) ) {
+            return;
+        }
+
+        // Variations don't have public URLs of their own.
+        if ( $post->post_type === 'product_variation' ) {
+            return;
+        }
+
+        $auto_derive_enabled = (bool) get_option( 'wpai_trp_auto_slug_enabled', 1 );
+        $original_slug       = $post->post_name;
+        $translations_added  = 0;
+
+        foreach ( $translation_languages as $lang_code ) {
+            $explicit_key = $this->slug_prefix . $lang_code;
+            $title_key    = '_trp_title_' . $lang_code;
+
+            $translated_slug = '';
+            $source          = '';
+
+            if ( isset( $all_meta[ $explicit_key ] ) && ! empty( $all_meta[ $explicit_key ][0] ) ) {
+                $translated_slug = sanitize_title( $all_meta[ $explicit_key ][0] );
+                $source          = 'explicit ' . $explicit_key;
+            } elseif ( $auto_derive_enabled && isset( $all_meta[ $title_key ] ) && ! empty( $all_meta[ $title_key ][0] ) ) {
+                $translated_slug = sanitize_title( $all_meta[ $title_key ][0] );
+                $source          = 'auto-derived from ' . $title_key;
+            }
+
+            if ( empty( $translated_slug ) ) {
+                continue;
+            }
+
+            // Don't insert a "translation" that's identical to the original.
+            if ( $translated_slug === $original_slug ) {
+                $this->log( sprintf( 'Skip slug translation for post #%d (%s): translated slug identical to original ("%s")', $post_id, $lang_code, $original_slug ) );
+                if ( isset( $all_meta[ $explicit_key ] ) ) {
+                    delete_post_meta( $post_id, $explicit_key );
+                }
+                continue;
+            }
+
+            $result = $this->force_insert_slug_translation( $original_slug, $translated_slug, $lang_code, 'post' );
+
+            if ( ! is_wp_error( $result ) && isset( $result['success'] ) && $result['success'] ) {
+                $translations_added++;
+                $this->log( sprintf( 'Slug translated [%s] post #%d "%s" to "%s" (%s)', $lang_code, $post_id, $original_slug, $translated_slug, $source ) );
+            } elseif ( is_wp_error( $result ) ) {
+                $this->log( sprintf( 'Slug API error for post #%d (%s): %s', $post_id, $lang_code, $result->get_error_message() ) );
+            }
+
+            if ( isset( $all_meta[ $explicit_key ] ) ) {
+                delete_post_meta( $post_id, $explicit_key );
+            }
+        }
+
+        if ( $translations_added > 0 ) {
+            $this->log( sprintf( 'Added %d post slug translations for post #%d', $translations_added, $post_id ) );
+        }
+    }
+
+    /**
      * Show admin notice with usage instructions
      */
     public function admin_notice() {
@@ -860,6 +1006,12 @@ class WPAI_TranslatePress_Sync {
             'type'              => 'integer',
             'sanitize_callback' => 'absint',
             'default'           => 0,
+        ) );
+
+        register_setting( 'wpai_trp_settings', 'wpai_trp_auto_slug_enabled', array(
+            'type'              => 'integer',
+            'sanitize_callback' => 'absint',
+            'default'           => 1,
         ) );
     }
 
@@ -930,6 +1082,7 @@ class WPAI_TranslatePress_Sync {
                     <tr><td><strong>WooCommerce</strong></td><td><?php echo $has_wc ? $ok . ' Active' : '&mdash; Not required'; ?></td></tr>
                     <tr><td><strong>Translation Languages</strong></td><td><?php echo ! empty( $languages ) ? esc_html( implode( ', ', $languages ) ) : $no . ' None detected'; ?></td></tr>
                     <tr><td><strong>Logging</strong></td><td><?php echo get_option( 'wpai_trp_logging_enabled', 0 ) ? $ok . ' Enabled' : '&mdash; Disabled'; ?> (<a href="?page=wpai-trp-sync&tab=logs">manage</a>)</td></tr>
+                    <tr><td><strong>Auto-derive Post Slug from Title</strong></td><td><?php echo get_option( 'wpai_trp_auto_slug_enabled', 1 ) ? $ok . ' Enabled' : '&mdash; Disabled'; ?> <?php echo function_exists( 'trpc_insert_slug_translation' ) ? '' : '<em style="color:#d63638;">(SEO Pack required)</em>'; ?> (<a href="?page=wpai-trp-sync&tab=logs">manage</a>)</td></tr>
                 </tbody>
             </table>
         </div>
@@ -966,6 +1119,7 @@ class WPAI_TranslatePress_Sync {
                     'Translated Title'   => '_trp_title_',
                     'Translated Content' => '_trp_content_',
                     'Translated Excerpt' => '_trp_excerpt_',
+                    'Translated Slug (optional, SEO Pack required - leave empty to auto-derive from translated title)' => '_trp_slug_',
                 );
                 foreach ( $fields as $label => $prefix ) {
                     echo '<tr><td><strong>' . esc_html( $label ) . '</strong></td>';
@@ -1054,7 +1208,8 @@ class WPAI_TranslatePress_Sync {
      * Logs tab — enable/disable logging and view log
      */
     private function render_tab_logs() {
-        $logging_enabled = get_option( 'wpai_trp_logging_enabled', 0 );
+        $logging_enabled   = get_option( 'wpai_trp_logging_enabled', 0 );
+        $auto_slug_enabled = get_option( 'wpai_trp_auto_slug_enabled', 1 );
         $log_content     = '';
         if ( file_exists( $this->log_file ) ) {
             $log_content = file_get_contents( $this->log_file );
@@ -1079,6 +1234,17 @@ class WPAI_TranslatePress_Sync {
                             Write detailed import logs
                         </label>
                         <p class="description">Enable before running an import. Disable when not debugging to save disk space.</p>
+                    </td>
+                </tr>
+
+                <tr>
+                    <th scope="row">Auto-derive post slug from translated title</th>
+                    <td>
+                        <label>
+                            <input type="checkbox" name="wpai_trp_auto_slug_enabled" value="1" <?php checked( $auto_slug_enabled, 1 ); ?> />
+                            When <code>_trp_slug_[lang]</code> is empty, build the translated post/product slug from <code>_trp_title_[lang]</code>
+                        </label>
+                        <p class="description">Requires TranslatePress SEO Pack. Existing translations for the same default slug are replaced on each import.</p>
                     </td>
                 </tr>
             </table>

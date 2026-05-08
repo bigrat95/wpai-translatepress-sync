@@ -1,11 +1,11 @@
-# Oli Import Sync for TranslatePress
+﻿# Oli Import Sync for TranslatePress
 
 Sync translations from **WP All Import** into **TranslatePress** using the official TranslatePress Custom API. This plugin is **not** affiliated with or endorsed by TranslatePress.
 
 **Author:** Olivier Bigras  
 **Website:** [olivierbigras.com](https://olivierbigras.com)  
 **Email:** oli@olivierbigras.com  
-**Version:** 3.14.0  
+**Version:** 3.15.0  
 **License:** GPL v2 or later
 
 **WordPress.org:** After approval, the plugin slug may differ from your local folder name. Request your reserved slug when you reply to the Plugin Review team.
@@ -359,6 +359,12 @@ define( 'WP_DEBUG_LOG', true );
 ---
 
 ## Changelog
+
+### 3.15.0
+- **NEW:** Translated post / product slug support via `_trp_slug_[lang]` (requires SEO Pack)
+- **NEW:** "Auto-derive post slug from translated title" setting (default ON)
+- Force-replace existing post slug translations on re-import (TranslatePress' INSERT IGNORE no longer blocks updates)
+- readme.txt tags fixed (kept under 5, hyphenated)
 
 ### 3.14.0
 - **CHANGE:** Plugin renamed to **Oli Import Sync for TranslatePress** (WordPress.org trademark guidance; not affiliated with TranslatePress)
