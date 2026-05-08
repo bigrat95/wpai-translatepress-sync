@@ -3,7 +3,7 @@
  * Plugin Name: Oli Import Sync for TranslatePress
  * Plugin URI: https://olivierbigras.com/
  * Description: Sync translations from WP All Import into TranslatePress via the official Custom API. Map _trp_title_[lang] and _trp_content_[lang] custom fields in your import. Not affiliated with TranslatePress.
- * Version: 3.15.0
+ * Version: 3.16.0
  * Author: Olivier Bigras
  * Author URI: https://olivierbigras.com
  * License: GPL v2 or later
@@ -16,11 +16,11 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'OLI_IMPORT_SYNC_TRP_VERSION', '3.15.0' );
+define( 'OLI_IMPORT_SYNC_TRP_VERSION', '3.16.0' );
 
 /**
  * =============================================================================
- * WP ALL IMPORT + TRANSLATEPRESS SYNC PLUGIN (v3.15.0 - Using Official API)
+ * WP ALL IMPORT + TRANSLATEPRESS SYNC PLUGIN (v3.16.0 - Using Official API)
  * =============================================================================
  * 
  * REQUIRES: TranslatePress Custom API plugin
@@ -933,6 +933,31 @@ class WPAI_TranslatePress_Sync {
 
             if ( empty( $translated_slug ) ) {
                 continue;
+            }
+
+            // Mirror WordPress's "-2", "-3" auto-disambiguator from the EN slug onto the FR slug.
+            // Two products with identical FR titles (e.g. same product, different SKU/finish) would
+            // otherwise produce the same FR slug, and TranslatePress' make_slugs_unique() strips a
+            // trailing "-\d+" before appending its own number, which clobbers titles whose own
+            // text ends in a number (e.g. "...inoxydable-304" turns into "...inoxydable-305").
+            // Mirroring the EN suffix bypasses that, only when EN's "-N" really is a WP duplicate
+            // suffix (i.e. another post owns the base slug) and N is a small integer (2..999).
+            if ( 'explicit ' . $explicit_key !== $source && preg_match( '/^(.+)-(\d{1,3})$/', $original_slug, $m ) ) {
+                $en_base = $m[1];
+                $en_num  = (int) $m[2];
+                if ( $en_num >= 2 ) {
+                    global $wpdb;
+                    $base_owner = $wpdb->get_var( $wpdb->prepare(
+                        "SELECT ID FROM {$wpdb->posts} WHERE post_name = %s AND ID <> %d AND post_status NOT IN ('trash','auto-draft') LIMIT 1",
+                        $en_base,
+                        $post_id
+                    ) );
+                    if ( $base_owner && ! preg_match( '/-' . $en_num . '$/', $translated_slug ) ) {
+                        $mirrored_slug = $translated_slug . '-' . $en_num;
+                        $this->log( sprintf( 'Slug disambiguator mirrored [%s] post #%d "%s" -> "%s" (EN suffix -%d)', $lang_code, $post_id, $translated_slug, $mirrored_slug, $en_num ) );
+                        $translated_slug = $mirrored_slug;
+                    }
+                }
             }
 
             // Don't insert a "translation" that's identical to the original.

@@ -1,14 +1,12 @@
 ﻿# Oli Import Sync for TranslatePress
 
-Sync translations from **WP All Import** into **TranslatePress** using the official TranslatePress Custom API. This plugin is **not** affiliated with or endorsed by TranslatePress.
+Import multilingual content into TranslatePress when using WP All Import. Third-party integration; not affiliated with TranslatePress / Cozmoslabs.
 
 **Author:** Olivier Bigras  
 **Website:** [olivierbigras.com](https://olivierbigras.com)  
 **Email:** oli@olivierbigras.com  
-**Version:** 3.15.0  
+**Version:** 3.16.0  
 **License:** GPL v2 or later
-
-**WordPress.org:** After approval, the plugin slug may differ from your local folder name. Request your reserved slug when you reply to the Plugin Review team.
 
 ---
 
@@ -305,7 +303,7 @@ trpc_get_languages();
 
 ## Debugging
 
-The plugin has a built-in log viewer under **Settings → Oli Import Sync → Logs**.
+The plugin has a built-in log viewer under **Settings → TP Import Sync → Logs**.
 
 1. Enable logging on the Logs tab
 2. Run your import
@@ -360,17 +358,19 @@ define( 'WP_DEBUG_LOG', true );
 
 ## Changelog
 
+### 3.16.0
+- **NEW:** Mirror WordPress's `-2`, `-3` slug auto-disambiguator from the EN slug onto auto-derived translated slugs
+- Prevents TranslatePress' `make_slugs_unique()` from clobbering trailing numbers in titles (e.g. "...-304" no longer becomes "...-305")
+- Only triggers when EN's `-N` is a real WP duplicate suffix (another post owns the base slug) and N is 2..999; explicit `_trp_slug_[lang]` mappings still win
+
 ### 3.15.0
 - **NEW:** Translated post / product slug support via `_trp_slug_[lang]` (requires SEO Pack)
 - **NEW:** "Auto-derive post slug from translated title" setting (default ON)
 - Force-replace existing post slug translations on re-import (TranslatePress' INSERT IGNORE no longer blocks updates)
-- readme.txt tags fixed (kept under 5, hyphenated)
 
 ### 3.14.0
-- **CHANGE:** Plugin renamed to **Oli Import Sync for TranslatePress** (WordPress.org trademark guidance; not affiliated with TranslatePress)
-- **CHANGE:** Text domain `oli-import-sync-for-translatepress` (use the slug WordPress.org assigns after reservation)
-- **FIX:** Admin CSS/JS loaded with `wp_enqueue_style` / `wp_enqueue_script` and inline hooks (no raw tags in PHP output)
-- Readme: directory screenshots removed from packaging expectations
+- Renamed plugin to "Oli Import Sync for TranslatePress" (trademark-friendly)
+- Text domain: `oli-import-sync-for-translatepress`
 
 ### 3.13.0
 - **FIX:** Strip ALL paragraph separators into a single text block (spaces only, no `<br>`)
@@ -382,7 +382,7 @@ define( 'WP_DEBUG_LOG', true );
 - Per-paragraph translation matching (superseded by 3.13.0)
 
 ### 3.11.0
-- **NEW:** Full plugin dashboard under Settings → Oli Import Sync
+- **NEW:** Full plugin dashboard under Settings → TP Import Sync
 - Tabbed interface: Dashboard (system status), Field Reference (auto-detected fields with copy buttons), Logs
 - Auto-detects TranslatePress languages, WooCommerce attributes, and all available translation fields
 - WP All Import admin notice slimmed to a link to the dashboard
